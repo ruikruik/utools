@@ -88,9 +88,11 @@ void usage( const char *reason ) {
     fprintf( stderr,
     "\t\n"
     "\tProgram for manipulating internal state of Pentium II\n"
-    "\twritten by Peter Bosch <public@pbx.sh>.\n"
+    "\twritten by Peter Bosch <public@pbx.sh> and ported to Linux\n"
+    "\tand extended by Rudolf Marek <r.marek@assembler.cz>\n"
+    "\n"
     "\tThis program might crash or damage the system they are loaded onto\n"
-    "\tand the author takes no responsibility for any damages resulting  \n"
+    "\tand the authors takes no responsibility for any damages resulting  \n"
     "\tfrom use of the software.\n"
     "\t\t-h                Print this message and exit\n"
     "\t\t\n"
@@ -112,7 +114,7 @@ void usage( const char *reason ) {
 
 void parse_args( int argc, char *const *argv, uint32_t *drange, uint32_t *idxaddr) {
     char opt;
-    while ( (opt = getopt( argc, argv, "R:wrufd:" )) != -1 ) {
+    while ( (opt = getopt( argc, argv, "hR:wrufd:" )) != -1 ) {
         switch( opt ) {
             case 'R':
                 crbus_read_index_flag = 1;
@@ -132,6 +134,8 @@ void parse_args( int argc, char *const *argv, uint32_t *drange, uint32_t *idxadd
                 break;
             case 'h':
                 help_flag = 1;
+                usage("");
+                exit( EXIT_FAILURE );
             break;
             case ':':
                 usage("missing argument");
