@@ -10,7 +10,19 @@ from use of the software.
 Only public resources and publically available hardware were used by the author
 to produce this program.
 
+# Compilation
+
+The Makefile expects ``p6tools`` and ``patchtools_pub`` repositories to be placed a level up in the directories hiearchy and in case of ``patchtools_pub`` already build with make too.
+
+To compile for Linux target, type "make".
+
+To compile for DOS/DJGPP target, type ``CC=i586-pc-msdosdjgpp-gcc make``. Note that the DJGPP requires CWSDPMI runtime with ring 0 access,
+therefore you will need to rename ``CWSDPR0.EXE`` to ``CWSDPMI.EXE``.
+
 # Usage
+
+Copy the tool to the target machine together with ``microload`` and ``utool`` and corresponding microcode update from ``patches/xxx/*.dat``.
+Load the update using ``microload`` and then you can invoke ``utool``.
 
     utool -h
     utool  [-d <readcount>] [-R <indexaddr> <crbus_addr>] [-w <crbus_addr> <value>] [-r <crbus_addr> [<count>]] [-f <fprom_addr> <count>] 
@@ -38,3 +50,4 @@ to produce this program.
 	
 	-f                Perform 64-bit FPROM data constant read from <fprom_addr>
 	                  optionally do more reads up to <fprom_addr> + <count>
+

@@ -15,20 +15,30 @@ typedef struct {
 } cpuid_opt_t;
 
 
+#ifndef __DJGPP__
 int fd;
+#endif
 
 void rdmsr( uint32_t msra , uint32_t *opt ) {
     uint64_t val;
+#ifdef __DJGPP__
+    asm volatile ( "rdmsr\n" : "=A" (val) : "c" (msra) );
+#else
     if (pread(fd, &val, sizeof(val), msra) != sizeof(val)) {
         perror("msr read:");
         exit(127);
     }
+#endif
     opt[0] = val & 0xffffffffu;
     val = val >> 32;
     opt[1] = val & 0xffffffffu;
+
 }
 
 void wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
+#ifdef __DJGPP__
+    asm volatile ("wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
+#else
     uint64_t val = hi;
 
     val = val << 32;
@@ -38,6 +48,7 @@ void wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
         perror("msr write:");
         exit(127);
     }
+#endif
 }
 
 void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
@@ -120,12 +131,13 @@ int main(int argc, char* argv[])
         exit(127);
     }
 
+#ifndef __DJGPP__
     fd = open("/dev/cpu/0/msr", O_RDWR);
     if (fd < 0) {
         perror("msr open:");
         exit(127);
     }
-
+#endif
         
     printf("\n--------------------- Before update -------------\n");    
     cpuinfo();
