@@ -7,12 +7,28 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+char patchbuf[4096];
+
 typedef struct {
     uint32_t r_eax;
     uint32_t r_ebx;
     uint32_t r_edx;
     uint32_t r_ecx;
 } cpuid_opt_t;
+
+typedef struct __attribute__((packed)) {
+    uint32_t      header_ver;
+    uint32_t      update_rev;
+    uint32_t      date_bcd;
+    uint32_t      proc_sig;
+    uint32_t      checksum;
+    uint32_t      loader_ver;
+    uint32_t      proc_flags;
+    uint32_t      data_size;
+    uint32_t      total_size;
+    uint8_t       reserved[12];
+    uint8_t       udata[0];
+} patch_hdr_t;
 
 
 #ifndef __DJGPP__
@@ -73,7 +89,7 @@ uint32_t get_patchlvl() {
 }
 
 
-void cpuinfo() {
+void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
     uint32_t msrv[2];
     char brand[13];
     cpuid_opt_t opt;
@@ -83,6 +99,7 @@ void cpuinfo() {
     brand[12] = 0;
     memcpy( brand, &opt.r_ebx, 12 );
     cpuid( 1, &opt );
+    *cpu_id = opt;
     printf("CPU: \"%s\" Family %x Model %x Stepping %x\n", 
         brand,
         (opt.r_eax >> 8) & 0xf,
@@ -92,18 +109,16 @@ void cpuinfo() {
             leafs, opt.r_ebx, opt.r_ecx, opt.r_edx );
     printf("Microcode revision: %08X\n", get_patchlvl() );
     rdmsr( 0x17, msrv );
-    printf("MSR 0x017: %08X %08X\n", msrv[0], msrv[1] );
+    *plat_id = 1u << ((msrv[1] >> 18) & 7);
+    printf("MSR 0x017 lo: %08X hi: %08X, platform ID: %02X\n", msrv[0], msrv[1], *plat_id);
 }
 
-char patchbuf[4096];
 
-uint32_t *patch;
 
-void load_patch( const char *fn ) {
+void *load_patch( const char *fn) {
     FILE *file;
     size_t sz;
-    uint32_t patchlin;
-    patch = (uint32_t *)(((uint32_t)(patchbuf + 0x100))&0xFFFFFF00);
+    void *patch = (void *)(((uint32_t)(patchbuf + 0x100))&0xFFFFFF00);
     file = fopen( fn, "rb" );
     if ( !file ) {
         fprintf(stderr,"Could not open file %s\n", fn);
@@ -114,10 +129,7 @@ void load_patch( const char *fn ) {
     if ( sz < 2048 ) {
         fprintf( stderr, "short read! %i\n", sz );
     }
-    patchlin = (uint32_t)patch;
-    printf("loading patch at %08X...\n", patchlin);
-    wrmsr( 0x79, patchlin + 0x30 , 0);
-    printf("still alive!\n");
+    return patch;
 }
 
 int main(int argc, char* argv[])
@@ -125,25 +137,39 @@ int main(int argc, char* argv[])
 
     uint32_t msrv[2];
     char msr_file_name[64];
+    int32_t plat_id;
+    cpuid_opt_t cpu_id;
+    uint32_t patchlin;
+    patch_hdr_t *hdr;
 
     if (argc < 2) {
             printf("need patch file name!\n");
-        exit(127);
+        exit(EXIT_FAILURE);
     }
 
 #ifndef __DJGPP__
     fd = open("/dev/cpu/0/msr", O_RDWR);
     if (fd < 0) {
         perror("msr open:");
-        exit(127);
+        exit(EXIT_FAILURE);
     }
 #endif
         
     printf("\n--------------------- Before update -------------\n");    
-    cpuinfo();
+    cpuinfo(&plat_id, &cpu_id);
     printf("\n----------------------  Do update  --------------\n");
-    load_patch(argv[1]);
+    hdr = load_patch(argv[1]);
+
+    if ((hdr->proc_sig != cpu_id.r_eax) || (hdr->proc_flags != plat_id)) {
+        printf("CPUID / Platform ID mismatch CPU has %08X / %02X patch has %08X / %02X\n",
+                    cpu_id.r_eax, plat_id, hdr->proc_sig,hdr->proc_flags);
+        exit(EXIT_FAILURE);
+    }
+
+    patchlin = (uint32_t)&hdr->udata[0];
+    printf("loading patch at %08X...\n", patchlin);
+    wrmsr( 0x79, patchlin, 0);
     printf("\n---------------------- After update -------------\n");
-    cpuinfo();
+    cpuinfo(&plat_id, &cpu_id);
     return 0;
 }
