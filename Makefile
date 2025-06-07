@@ -1,6 +1,10 @@
-CFLAGS += -m32
 
-all: microload utool ucode-66a ucode-652
+CFLAGS += $(CFLAGS-$@)
+
+CFLAGS-utool = -m32
+CFLAGS-microload = -m32
+
+all: microload utool ucode-66a ucode-652 msrom2scramble
 
 utool-ucode:
 	python ../p6tools/simpleas.py patches/utool-ucode.txt > patches/utool-ucode_unscrambled.txt
@@ -16,5 +20,7 @@ microload : microload.c
 
 utool : utool.c
 
+msrom2scramble : msrom2scramble.c
+
 clean :
-	rm -f microload microload.exe utool utool.exe  patches/utool-ucode_unscrambled.txt patches/utool-ucode.hex patches/66a/utool-ucode-66a.dat patches/652/utool-ucode-652.dat
+	rm -f microload microload.exe utool utool.exe msrom2scramble msrom2scramble.exe patches/utool-ucode_unscrambled.txt patches/utool-ucode.hex patches/66a/utool-ucode-66a.dat patches/652/utool-ucode-652.dat

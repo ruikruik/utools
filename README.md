@@ -21,7 +21,7 @@ therefore you will need to rename ``CWSDPR0.EXE`` to ``CWSDPMI.EXE``.
 
 # Usage
 
-Copy the tool to the target machine together with ``microload`` and ``utool`` and corresponding microcode update from ``patches/xxx/*.dat``.
+Copy the ``utool`` to the target machine together with ``microload``  and corresponding microcode update from ``patches/xxx/*.dat``.
 Load the update using ``microload`` and then you can invoke ``utool``.
 
     utool -h
@@ -51,3 +51,4 @@ Load the update using ``microload`` and then you can invoke ``utool``.
 	-f                Perform 64-bit FPROM data constant read from <fprom_addr>
 	                  optionally do more reads up to <fprom_addr> + <count>
 
+The ``msrom2scramble`` is meant to run on host system and transforms microcode ROM dumps to something which can be used by ``p6tools``.
