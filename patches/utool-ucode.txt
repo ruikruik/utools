@@ -36,7 +36,7 @@ UROM_3FCE	                          ECX = OR_DSZ32  ( ECX,   CONST_16_06e )
 UROM_3FD0	                          ECX = SHL_DSZ32 ( ECX,   CONST_16_008 )
 UROM_3FD1	                          ECX = OR_DSZ32  ( ECX,   CONST_16_072 )
 
-UROM_3FD2	                          U_JMP_NT        ( CONST, UROM_1CD1, IA_11, U3_1b )
+UROM_3FD2	                          U_JMP_NT        ( CONST, UROM_CPUID_DONE, IA_11, U3_1b )
 
 UROM_3FD4  cpuid_try_leaf42:
 UROM_3FD4	                          R34 = SUB_DSZ32 ( EAX,   CONST_16_042)
@@ -83,8 +83,8 @@ UROM_3FF6	                          MOVE_DSZ32     (CONST         , CONST_0)
 UROM_3FF8  cpuid_try_other:
 UROM_3FF8	                          EBX = MOVE_DSZ32 (CONST, CONST_0)
 UROM_3FF9	                          ECX = MOVE_DSZ32 (CONST, CONST_0)
-UROM_3FFA	                          U_JMP_NT        ( CONST, UROM_2B8A, IA_11, U3_1b )
+UROM_3FFA	                          U_JMP_NT        ( CONST, UROM_CPUID_OTHER, IA_11, U3_1b )
 UROM_3FFC	                          MOVE_DSZ32 (CONST, CONST_0)
 UROM_3FFD  cpuid_leaf4x_done:
 UROM_3FFD	                          ECX = MOVE_DSZ32( CONST , CONST_16_042 )
-UROM_3FFE	                          U_JMP_NT        ( CONST, UROM_1CD1, IA_11, U3_1b )
+UROM_3FFE	                          U_JMP_NT        ( CONST, UROM_CPUID_DONE, IA_11, U3_1b )
