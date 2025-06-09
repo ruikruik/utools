@@ -7,8 +7,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-char patchbuf[4096];
-
 typedef struct {
     uint32_t r_eax;
     uint32_t r_ebx;
@@ -30,6 +28,7 @@ typedef struct __attribute__((packed)) {
     uint8_t       udata[0];
 } patch_hdr_t;
 
+int test_ucode_flag, help_flag;
 
 #ifndef __DJGPP__
 int fd;
@@ -118,6 +117,7 @@ void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
 void *load_patch( const char *fn) {
     FILE *file;
     size_t sz;
+    void *patchbuf = malloc(4096);
     void *patch = (void *)(((uint32_t)(patchbuf + 0x100))&0xFFFFFF00);
     file = fopen( fn, "rb" );
     if ( !file ) {
@@ -132,6 +132,59 @@ void *load_patch( const char *fn) {
     return patch;
 }
 
+void usage( const char *reason ) {
+    fprintf( stderr, "%s\n", reason );
+    fprintf( stderr,
+    "\tmicroload -h\n" );
+    fprintf( stderr,
+    "\tmicroload  [-t <testfilename>] <filename> \n\n" );
+
+    if ( !help_flag )
+        exit( EXIT_FAILURE );
+
+    fprintf( stderr,
+    "\t\n"
+    "\tProgram for loading a microcode update into Intel CPU\n"
+    "\twritten by Peter Bosch <public@pbx.sh> and ported to Linux/DOS\n"
+    "\tand extended by Rudolf Marek <r.marek@assembler.cz>\n"
+    "\n"
+    "\tThis program might crash or damage the system they are loaded onto\n"
+    "\tand the authors takes no responsibility for any damages resulting  \n"
+    "\tfrom use of the software.\n"
+    "\t\t-h                Print this message and exit\n"
+    "\t\t\n"
+    "\t\t-t                Perform side channel attack on microcode update.\n"
+    "\t\t                  The <testfilename> specifies second update to be loaded\n"
+    "\t\t                  in which each byte will be test-corrupted\n"
+    "\t\t                  and results will be printed\n"
+    "\t\t                  To make it work each update must be different revision\n"
+    "\t\t\n");
+}
+
+void parse_args( int argc, char *const *argv, char **testucode) {
+    char opt;
+    while ( (opt = getopt( argc, argv, "ht:" )) != -1 ) {
+        switch( opt ) {
+            case 't':
+                test_ucode_flag = 1;
+                *testucode = optarg;
+                break;
+            case 'h':
+                help_flag = 1;
+                usage("");
+                exit( EXIT_FAILURE );
+            break;
+            case ':':
+                usage("missing argument");
+                break;
+            default:
+            case '?':
+                usage("unknown argument");
+                break;
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -140,11 +193,17 @@ int main(int argc, char* argv[])
     int32_t plat_id;
     cpuid_opt_t cpu_id;
     uint32_t patchlin;
+    char *fname;
+    char *testucode = NULL;
     patch_hdr_t *hdr;
 
-    if (argc < 2) {
-            printf("need patch file name!\n");
-        exit(EXIT_FAILURE);
+    parse_args(argc, argv, &testucode);
+
+    if (optind == (argc - 1)) {
+        fname = argv[optind++];
+    } else {
+        usage("Wrong parameter count");
+        exit(127);
     }
 
 #ifndef __DJGPP__
@@ -158,7 +217,7 @@ int main(int argc, char* argv[])
     printf("\n--------------------- Before update -------------\n");    
     cpuinfo(&plat_id, &cpu_id);
     printf("\n----------------------  Do update  --------------\n");
-    hdr = load_patch(argv[1]);
+    hdr = load_patch(fname);
 
     if ((hdr->proc_sig != cpu_id.r_eax) || (hdr->proc_flags != plat_id)) {
         printf("CPUID / Platform ID mismatch CPU has %08X / %02X patch has %08X / %02X\n",
@@ -171,5 +230,36 @@ int main(int argc, char* argv[])
     wrmsr( 0x79, patchlin, 0);
     printf("\n---------------------- After update -------------\n");
     cpuinfo(&plat_id, &cpu_id);
+
+    if (test_ucode_flag) {
+        int i;
+        uint32_t newlevel = get_patchlvl();
+        uint32_t testlevel;
+        uint8_t tmp;
+        patch_hdr_t *hdr1;
+        uint32_t patchlin1;
+
+        printf("Trying to corrupt %s update at all byte offsets!\n", testucode);
+        hdr1 = load_patch(testucode);
+        patchlin1 = (uint32_t)&hdr1->udata[0];
+
+        for (i=0;i<2048;i++) {
+            uint8_t *p = (uint8_t *) hdr1;
+            printf("Load on corrupt offset: %04x ", i);
+            tmp = p[i];
+            /* make sure byte is changed */
+            p[i]++;
+            wrmsr( 0x79, patchlin1, 0);
+            testlevel = get_patchlvl();
+            if (testlevel != newlevel) {
+                 printf("OK\n");
+            } else {
+                 printf("FAILED\n");
+            }
+            wrmsr( 0x79, patchlin, 0);
+            p[i] = tmp;
+        }
+    }
+
     return 0;
 }
