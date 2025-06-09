@@ -6,6 +6,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifndef __DJGPP__
+#include <sys/mman.h>
+#endif
 
 typedef struct {
     uint32_t r_eax;
@@ -117,8 +120,8 @@ void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
 void *load_patch( const char *fn) {
     FILE *file;
     size_t sz;
-    void *patchbuf = malloc(4096);
-    void *patch = (void *)(((uint32_t)(patchbuf + 0x100))&0xFFFFFF00);
+    void *patchbuf = malloc(8192);
+    void *patch = (void *)(((uint32_t)(patchbuf + 0x1000))&0xFFFFF000);
     file = fopen( fn, "rb" );
     if ( !file ) {
         fprintf(stderr,"Could not open file %s\n", fn);
@@ -129,6 +132,13 @@ void *load_patch( const char *fn) {
     if ( sz < 2048 ) {
         fprintf( stderr, "short read! %i\n", sz );
     }
+#ifndef __DJGPP__
+    if (mlock(patch, 4096) == -1) {
+        perror("Locking memory failed!");
+        exit( EXIT_FAILURE );
+    }
+#endif
+
     return patch;
 }
 
