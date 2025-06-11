@@ -6,7 +6,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifndef __DJGPP__
+#ifdef __DJGPP__
+#include <dpmi.h>
+#include <sys/segments.h>
+#else
 #include <sys/mman.h>
 #endif
 
@@ -53,7 +56,17 @@ void rdmsr( uint32_t msra , uint32_t *opt ) {
 
 }
 
-void wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
+static inline uint64_t rdtsc(void)
+{
+    uint32_t low, high;
+    asm volatile("mfence\n"
+                 "lfence\n"
+                 "rdtsc\n"
+                 "lfence\n": "=a"(low), "=d"(high) :: "memory");
+    return ((uint64_t)high << 32) | low;
+}
+
+static inline uint64_t wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
 #ifdef __DJGPP__
     asm volatile ("wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
 #else
@@ -202,7 +215,7 @@ int main(int argc, char* argv[])
     char msr_file_name[64];
     int32_t plat_id;
     cpuid_opt_t cpu_id;
-    uint32_t patchlin;
+    uint32_t patchlin, base;
     char *fname;
     char *testucode = NULL;
     patch_hdr_t *hdr;
@@ -236,6 +249,15 @@ int main(int argc, char* argv[])
     }
 
     patchlin = (uint32_t)&hdr->udata[0];
+#ifdef __DJGPP__
+    /* The DJGPP uses non-zero segment bases and microcode update needs linear address */
+    if ((__dpmi_get_segment_base_address(_my_ds(), &base)) != 0) {
+        perror("Unable to get segment base");
+        exit(EXIT_FAILURE);
+    }
+    patchlin += base;
+#endif
+
     printf("loading patch at %08X...\n", patchlin);
     wrmsr( 0x79, patchlin, 0);
     printf("\n---------------------- After update -------------\n");
@@ -252,20 +274,28 @@ int main(int argc, char* argv[])
         printf("Trying to corrupt %s update at all byte offsets!\n", testucode);
         hdr1 = load_patch(testucode);
         patchlin1 = (uint32_t)&hdr1->udata[0];
+#ifdef __DJGPP__
+        /* The DJGPP uses non-zero segment bases and microcode update needs linear address */
+        patchlin1 += base;
+#endif
 
         for (i=0;i<2048;i++) {
             uint8_t *p = (uint8_t *) hdr1;
+            uint64_t start, stop;
             printf("Load on corrupt offset: %04x ", i);
             tmp = p[i];
             /* make sure byte is changed */
             p[i]++;
+            start = rdtsc();
             wrmsr( 0x79, patchlin1, 0);
+            stop = rdtsc();
             testlevel = get_patchlvl();
             if (testlevel != newlevel) {
-                 printf("OK\n");
+                 printf("OK");
             } else {
-                 printf("FAILED\n");
+                 printf("FAILED");
             }
+            printf(", took %lld cycles\n", (unsigned long long) stop - start);
             wrmsr( 0x79, patchlin, 0);
             p[i] = tmp;
         }

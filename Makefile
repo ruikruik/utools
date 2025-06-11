@@ -1,5 +1,5 @@
 
-CFLAGS += $(CFLAGS-$@)
+CFLAGS += $(CFLAGS-$@) -O2
 
 CFLAGS-utool = -m32
 CFLAGS-microload = -m32
