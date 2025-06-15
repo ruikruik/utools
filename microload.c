@@ -59,10 +59,10 @@ void rdmsr( uint32_t msra , uint32_t *opt ) {
 static inline uint64_t rdtsc(void)
 {
     uint32_t low, high;
-    asm volatile("mfence\n"
-                 "lfence\n"
-                 "rdtsc\n"
-                 "lfence\n": "=a"(low), "=d"(high) :: "memory");
+    /* hack to execute cpuid with leaf 0 */
+    low = 0;
+    asm volatile("cpuid\n" /* serialize */
+                 "rdtsc\n" : "+a"(low), "=d"(high) :: "ebx", "ecx", "memory");
     return ((uint64_t)high << 32) | low;
 }
 
