@@ -6,12 +6,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <assert.h>
 #ifdef __DJGPP__
+#include <setjmp.h>
+#include <signal.h>
 #include <dpmi.h>
 #include <sys/segments.h>
+#include <sys/exceptn.h>
 #else
 #include <sys/mman.h>
 #endif
+
+#define IA32_PLATFORM_ID 0x17
+#define IA32_BIOS_SIGN_ID 0x8b
+#define IA32_BIOS_UPDT_TRIG 0x79
 
 typedef struct {
     uint32_t r_eax;
@@ -36,24 +44,45 @@ typedef struct __attribute__((packed)) {
 
 int test_ucode_flag, help_flag;
 
-#ifndef __DJGPP__
+#ifdef __DJGPP__
+jmp_buf wrmsr_gpf;
+jmp_buf rdmsr_gpf;
+/* hack to get rdmsr/wrmsr instruction address */
+extern void rdmsr_eip(void);
+extern void wrmsr_eip(void);
+
+static void sighandler(int s)
+{
+    if (__djgpp_exception_state->__eip == ((uint32_t) &rdmsr_eip)) {
+        /* recover the RDMSR */
+        longjmp(rdmsr_gpf, 1);
+    } else if (__djgpp_exception_state->__eip == ((uint32_t) &wrmsr_eip)) {
+        /* recover the WRMSR */
+        longjmp(wrmsr_gpf, 1);
+    }
+    /* let default handler run */
+}
+#else
 int fd;
 #endif
 
-void rdmsr( uint32_t msra , uint32_t *opt ) {
+static int rdmsr( uint32_t msra , uint32_t *opt ) {
     uint64_t val;
 #ifdef __DJGPP__
-    asm volatile ( "rdmsr\n" : "=A" (val) : "c" (msra) );
+    if (setjmp(rdmsr_gpf) == 0) {
+        asm volatile ( "_rdmsr_eip: rdmsr\n" : "=A" (val) : "c" (msra) );
+    } else {
+        return 1;
+    }
 #else
     if (pread(fd, &val, sizeof(val), msra) != sizeof(val)) {
-        perror("msr read:");
-        exit(127);
+        return 1;
     }
 #endif
     opt[0] = val & 0xffffffffu;
     val = val >> 32;
     opt[1] = val & 0xffffffffu;
-
+    return 0;
 }
 
 static inline uint64_t rdtsc(void)
@@ -66,9 +95,14 @@ static inline uint64_t rdtsc(void)
     return ((uint64_t)high << 32) | low;
 }
 
-static inline uint64_t wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
+static int wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
 #ifdef __DJGPP__
-    asm volatile ("wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
+    if (setjmp(wrmsr_gpf) == 0) {
+        asm volatile ("_wrmsr_eip: wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
+    } else {
+        assert(!"WRMSR faulted");
+        return 1;
+    }
 #else
     uint64_t val = hi;
 
@@ -76,8 +110,8 @@ static inline uint64_t wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
     val |= lo;
 
     if (pwrite(fd, &val, sizeof(val), msra) != sizeof(val)) {
-        perror("msr write:");
-        exit(127);
+        assert(!"WRMSR faulted");
+        return 1;
     }
 #endif
 }
@@ -97,12 +131,11 @@ void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
 uint32_t get_patchlvl() {
     cpuid_opt_t opt;
     uint32_t msrv[2];
-    wrmsr(0x8b, 0, 0);
+    wrmsr(IA32_BIOS_SIGN_ID, 0, 0);
     cpuid(1, &opt);
-    rdmsr(0x8b, msrv);
+    rdmsr(IA32_BIOS_SIGN_ID, msrv);
     return msrv[1];
 }
-
 
 void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
     uint32_t msrv[2];
@@ -123,12 +156,14 @@ void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
     printf("CPUID Level: %i, Features: EBX: %08X ECX: %08X EDX: %08X\n",
             leafs, opt.r_ebx, opt.r_ecx, opt.r_edx );
     printf("Microcode revision: %08X\n", get_patchlvl() );
-    rdmsr( 0x17, msrv );
-    *plat_id = 1u << ((msrv[1] >> 18) & 7);
-    printf("MSR 0x017 lo: %08X hi: %08X, platform ID: %02X\n", msrv[0], msrv[1], *plat_id);
+    *plat_id = 0;
+    if (!rdmsr(IA32_PLATFORM_ID, msrv)) {
+        *plat_id = 1u << ((msrv[1] >> 18) & 7);
+    } else {
+        printf("WARNING: IA32_PLATFORM_ID not available, assuming 0\n");
+    }
+    printf("MSR IA32_PLATFORM_ID lo: %08X hi: %08X, platform ID: %02X\n", msrv[0], msrv[1], *plat_id);
 }
-
-
 
 void *load_patch( const char *fn) {
     FILE *file;
@@ -229,7 +264,11 @@ int main(int argc, char* argv[])
         exit(127);
     }
 
-#ifndef __DJGPP__
+#ifdef __DJGPP__
+    signal(SIGSEGV, sighandler);
+    /* DOSBOX emulates WRMSR fault as SIGILL */
+    signal(SIGILL, sighandler);
+#else
     fd = open("/dev/cpu/0/msr", O_RDWR);
     if (fd < 0) {
         perror("msr open:");
@@ -259,7 +298,7 @@ int main(int argc, char* argv[])
 #endif
 
     printf("loading patch at %08X...\n", patchlin);
-    wrmsr( 0x79, patchlin, 0);
+    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin, 0);
     printf("\n---------------------- After update -------------\n");
     cpuinfo(&plat_id, &cpu_id);
 
@@ -287,7 +326,7 @@ int main(int argc, char* argv[])
             /* make sure byte is changed */
             p[i]++;
             start = rdtsc();
-            wrmsr( 0x79, patchlin1, 0);
+            wrmsr(IA32_BIOS_UPDT_TRIG, patchlin1, 0);
             stop = rdtsc();
             testlevel = get_patchlvl();
             if (testlevel != newlevel) {
@@ -296,7 +335,7 @@ int main(int argc, char* argv[])
                  printf("FAILED");
             }
             printf(", took %lld cycles\n", (unsigned long long) stop - start);
-            wrmsr( 0x79, patchlin, 0);
+            wrmsr(IA32_BIOS_UPDT_TRIG, patchlin, 0);
             p[i] = tmp;
         }
     }
