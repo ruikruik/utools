@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <malloc.h>
 #include <assert.h>
 #ifdef __DJGPP__
 #include <setjmp.h>
@@ -17,9 +18,15 @@
 #include <sys/mman.h>
 #endif
 
+#define DEVMSR "/dev/cpu/0/msr"
+
 #define IA32_PLATFORM_ID 0x17
 #define IA32_BIOS_SIGN_ID 0x8b
 #define IA32_BIOS_UPDT_TRIG 0x79
+
+/* Size of ucode in dwords */
+#define NUM_UCODE_DW 0x8000
+#define TEST_FILL 0xaaaaaaaa
 
 typedef struct {
     uint32_t r_eax;
@@ -42,7 +49,7 @@ typedef struct __attribute__((packed)) {
     uint8_t       udata[0];
 } patch_hdr_t;
 
-int test_ucode_flag, help_flag;
+int test_ucode_flag, help_flag, dump_ucoderom_flag;
 
 #ifdef __DJGPP__
 jmp_buf wrmsr_gpf;
@@ -95,8 +102,11 @@ static inline uint64_t rdtsc(void)
     return ((uint64_t)high << 32) | low;
 }
 
-static int wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
+static int wrmsr( uint32_t msra, uint64_t val) {
 #ifdef __DJGPP__
+    uint32_t lo, hi;
+    lo = val & 0xffffffffu;
+    hi = val >> 32;
     if (setjmp(wrmsr_gpf) == 0) {
         asm volatile ("_wrmsr_eip: wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
     } else {
@@ -104,11 +114,6 @@ static int wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
         return 1;
     }
 #else
-    uint64_t val = hi;
-
-    val = val << 32;
-    val |= lo;
-
     if (pwrite(fd, &val, sizeof(val), msra) != sizeof(val)) {
         assert(!"WRMSR faulted");
         return 1;
@@ -116,7 +121,23 @@ static int wrmsr( uint32_t msra , uint32_t lo, uint32_t hi ) {
 #endif
 }
 
-void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
+/* DJGPP has broken implementation of posix_memalign / memalign */
+static void *malloc_aligned(size_t size, uintptr_t align)
+{
+    void *ret;
+    uintptr_t p;
+    
+    ret = malloc(size + align);
+
+    if (ret == NULL) {
+        return ret;
+    }
+
+    p = (uintptr_t) ret;
+    return (void *) (p & ~(align - 1));
+}
+
+static void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
     uint32_t a,b,c,d;
 
     a = leaf;
@@ -128,16 +149,29 @@ void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
     opt->r_edx = d;
 }
 
-uint32_t get_patchlvl() {
+static uint32_t get_patchlvl() {
     cpuid_opt_t opt;
     uint32_t msrv[2];
-    wrmsr(IA32_BIOS_SIGN_ID, 0, 0);
+    wrmsr(IA32_BIOS_SIGN_ID, 0);
     cpuid(1, &opt);
     rdmsr(IA32_BIOS_SIGN_ID, msrv);
     return msrv[1];
 }
 
-void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
+static uint32_t get_platid(void) {
+    uint32_t msrv[2];
+    uint32_t ret;
+
+    ret = 0;
+    if (!rdmsr(IA32_PLATFORM_ID, msrv)) {
+        ret = 1u << ((msrv[1] >> 18) & 7);
+    } else {
+        printf("WARNING: IA32_PLATFORM_ID not available, assuming 0\n");
+    }
+    return ret;
+}
+
+static void print_cpuinfo(void) {
     uint32_t msrv[2];
     char brand[13];
     cpuid_opt_t opt;
@@ -147,7 +181,6 @@ void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
     brand[12] = 0;
     memcpy( brand, &opt.r_ebx, 12 );
     cpuid( 1, &opt );
-    *cpu_id = opt;
     printf("CPU: \"%s\" Family %x Model %x Stepping %x\n", 
         brand,
         (opt.r_eax >> 8) & 0xf,
@@ -156,20 +189,21 @@ void cpuinfo(uint32_t *plat_id, cpuid_opt_t *cpu_id) {
     printf("CPUID Level: %i, Features: EBX: %08X ECX: %08X EDX: %08X\n",
             leafs, opt.r_ebx, opt.r_ecx, opt.r_edx );
     printf("Microcode revision: %08X\n", get_patchlvl() );
-    *plat_id = 0;
-    if (!rdmsr(IA32_PLATFORM_ID, msrv)) {
-        *plat_id = 1u << ((msrv[1] >> 18) & 7);
-    } else {
-        printf("WARNING: IA32_PLATFORM_ID not available, assuming 0\n");
-    }
-    printf("MSR IA32_PLATFORM_ID lo: %08X hi: %08X, platform ID: %02X\n", msrv[0], msrv[1], *plat_id);
+    printf("Platform ID: %02X\n", get_platid());
 }
 
-void *load_patch( const char *fn) {
+static patch_hdr_t *load_patch( const char *fn) {
+    patch_hdr_t *hdr;
     FILE *file;
     size_t sz;
-    void *patchbuf = malloc(8192);
-    void *patch = (void *)(((uint32_t)(patchbuf + 0x1000))&0xFFFFF000);
+    void *patch = malloc_aligned(0x2000, 32);
+    hdr = patch;
+    assert(patch != NULL);
+    uint32_t plat_id = get_platid();
+    cpuid_opt_t opt;
+    
+    cpuid( 1, &opt );
+
     file = fopen( fn, "rb" );
     if ( !file ) {
         fprintf(stderr,"Could not open file %s\n", fn);
@@ -187,7 +221,13 @@ void *load_patch( const char *fn) {
     }
 #endif
 
-    return patch;
+    if ((hdr->proc_sig != opt.r_eax) || (hdr->proc_flags != plat_id)) {
+        printf("CPUID / Platform ID mismatch CPU has %08X / %02X patch has %08X / %02X\n",
+                    opt.r_eax, plat_id, hdr->proc_sig,hdr->proc_flags);
+        exit(EXIT_FAILURE);
+    }
+
+    return hdr;
 }
 
 void usage( const char *reason ) {
@@ -216,13 +256,18 @@ void usage( const char *reason ) {
     "\t\t                  in which each byte will be test-corrupted\n"
     "\t\t                  and results will be printed\n"
     "\t\t                  To make it work each update must be different revision\n"
+    "\t\t-d                Dump the microcode ROM to RAM using a special microcode\n"
+    "\t\t                  update.\n"
     "\t\t\n");
 }
 
-void parse_args( int argc, char *const *argv, char **testucode) {
+static void parse_args( int argc, char *const *argv, char **testucode) {
     char opt;
-    while ( (opt = getopt( argc, argv, "ht:" )) != -1 ) {
+    while ( (opt = getopt( argc, argv, "hdt:" )) != -1 ) {
         switch( opt ) {
+            case 'd':
+                dump_ucoderom_flag = 1;
+                break;
             case 't':
                 test_ucode_flag = 1;
                 *testucode = optarg;
@@ -243,14 +288,143 @@ void parse_args( int argc, char *const *argv, char **testucode) {
     }
 }
 
+static uint64_t get_lin_addr(void *ptr)
+{
+    uint64_t ret;
+    ret = (uintptr_t) ptr;
+#ifdef __DJGPP__
+    uint32_t base;
+    /* The DJGPP uses non-zero segment bases and microcode update needs linear address */
+    if ((__dpmi_get_segment_base_address(_my_ds(), &base)) != 0) {
+        perror("Unable to get segment base");
+        exit(EXIT_FAILURE);
+    }
+    ret += base;
+#endif
+    return ret;
+}
+
+
+static void dump_ucoderom(char *fname)
+{
+    int j;
+    patch_hdr_t *hdr;
+    uint32_t msrv[2];
+    uint32_t size;
+    uint32_t *ucode;
+    uint64_t patchlin;
+
+    size = (NUM_UCODE_DW  + 1) * sizeof(uint32_t);
+    ucode = malloc_aligned(size, 32);
+
+    uint64_t ucode_lin = get_lin_addr(ucode);
+
+    memset(ucode, TEST_FILL, size);
+
+    hdr = load_patch(fname);
+    patchlin = get_lin_addr(&hdr->udata[0]);
+
+    printf("loading patch from 0x%08LX, ucode will be at 0x%08LX...\n", patchlin, ucode_lin);
+    /* communicate the buffer in hi bits of IA32_BIOS_SIGN_ID */
+    wrmsr(IA32_BIOS_SIGN_ID, ucode_lin << 32);
+    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
+    assert(ucode[NUM_UCODE_DW] == TEST_FILL);
+
+    rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    printf("MSR IA32_BIOS_SIGN_ID is %x %x\n", msrv[1], msrv[0]);
+
+    printf("Checking if ucode is dumped...\n");
+
+    if (ucode[0x1000] == TEST_FILL) {
+        printf("Fail, but trying to re-trigger it using WRMSR to 0x8b\n");
+        wrmsr(IA32_BIOS_SIGN_ID, ucode_lin << 32);
+    }
+
+    if (ucode[0x1000] == TEST_FILL) {
+        printf("Fail, but trying to re-trigger it using CPUID\n");
+        cpuid_opt_t opt;
+        cpuid(1, &opt);
+    }
+
+    rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    printf("MSR IA32_BIOS_SIGN_ID is %x %x\n", msrv[1], msrv[0]);
+
+    if (ucode[0x1000] == TEST_FILL) {
+        printf("Fail :(\n");
+        return;
+    }
+
+    for (j = 0;j < NUM_UCODE_DW;j++) {
+        if (((j % 8) == 0)) {
+            printf("\n%04X:", j);
+        }
+        printf(" %08X", ucode[j]);
+    }
+    printf("\n");
+}
+
+static void test_ucode_structure(char *fname, char *testucode)
+{
+    int i;
+    uint32_t testlevel, oldlevel;
+    uint8_t tmp;
+    patch_hdr_t *hdr0, *hdr1;
+    uint64_t patchlin1, patchlin0;
+
+    printf("Trying to corrupt %s update at all byte offsets!\n", testucode);
+    hdr0 = load_patch(fname);
+    hdr1 = load_patch(testucode);
+    patchlin0 = get_lin_addr(&hdr0->udata[0]);
+    patchlin1 = get_lin_addr(&hdr1->udata[0]);
+    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin0);
+
+    oldlevel = get_patchlvl();
+    printf("Current ucode version is %x\n", oldlevel);
+
+    for (i=0;i<2048;i++) {
+        uint8_t *p = (uint8_t *) hdr1;
+        uint64_t start, stop;
+        printf("Load on corrupt offset: %04x ", i);
+        tmp = p[i];
+        /* make sure byte is changed */
+        p[i]++;
+        start = rdtsc();
+        wrmsr(IA32_BIOS_UPDT_TRIG, patchlin1);
+        stop = rdtsc();
+        testlevel = get_patchlvl();
+        if (testlevel != oldlevel) {
+            printf("OK");
+        } else {
+            printf("FAILED");
+        }
+        printf(", took %lld cycles\n", (unsigned long long) stop - start);
+        wrmsr(IA32_BIOS_UPDT_TRIG, patchlin0);
+        p[i] = tmp;
+    }
+}
+
+static void update_ucode(char *fname)
+{
+    uint64_t patchlin;
+    patch_hdr_t *hdr;
+    printf("\n--------------------- Before update -------------\n");    
+    print_cpuinfo();
+    printf("\n----------------------  Do update  --------------\n");
+    hdr = load_patch(fname);
+
+    patchlin = get_lin_addr(&hdr->udata[0]);
+
+    printf("loading patch from 0x%08LX...\n", patchlin);
+
+    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
+    printf("\n---------------------- After update -------------\n");
+
+    print_cpuinfo();
+}
+
 int main(int argc, char* argv[])
 {
-
-    uint32_t msrv[2];
     char msr_file_name[64];
-    int32_t plat_id;
-    cpuid_opt_t cpu_id;
-    uint32_t patchlin, base;
     char *fname;
     char *testucode = NULL;
     patch_hdr_t *hdr;
@@ -269,75 +443,21 @@ int main(int argc, char* argv[])
     /* DOSBOX emulates WRMSR fault as SIGILL */
     signal(SIGILL, sighandler);
 #else
-    fd = open("/dev/cpu/0/msr", O_RDWR);
+    fd = open(DEVMSR, O_RDWR);
     if (fd < 0) {
-        perror("msr open:");
+        perror(DEVMSR " open");
         exit(EXIT_FAILURE);
     }
 #endif
-        
-    printf("\n--------------------- Before update -------------\n");    
-    cpuinfo(&plat_id, &cpu_id);
-    printf("\n----------------------  Do update  --------------\n");
-    hdr = load_patch(fname);
+    assert(fname != NULL);
 
-    if ((hdr->proc_sig != cpu_id.r_eax) || (hdr->proc_flags != plat_id)) {
-        printf("CPUID / Platform ID mismatch CPU has %08X / %02X patch has %08X / %02X\n",
-                    cpu_id.r_eax, plat_id, hdr->proc_sig,hdr->proc_flags);
-        exit(EXIT_FAILURE);
-    }
-
-    patchlin = (uint32_t)&hdr->udata[0];
-#ifdef __DJGPP__
-    /* The DJGPP uses non-zero segment bases and microcode update needs linear address */
-    if ((__dpmi_get_segment_base_address(_my_ds(), &base)) != 0) {
-        perror("Unable to get segment base");
-        exit(EXIT_FAILURE);
-    }
-    patchlin += base;
-#endif
-
-    printf("loading patch at %08X...\n", patchlin);
-    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin, 0);
-    printf("\n---------------------- After update -------------\n");
-    cpuinfo(&plat_id, &cpu_id);
-
-    if (test_ucode_flag) {
-        int i;
-        uint32_t newlevel = get_patchlvl();
-        uint32_t testlevel;
-        uint8_t tmp;
-        patch_hdr_t *hdr1;
-        uint32_t patchlin1;
-
-        printf("Trying to corrupt %s update at all byte offsets!\n", testucode);
-        hdr1 = load_patch(testucode);
-        patchlin1 = (uint32_t)&hdr1->udata[0];
-#ifdef __DJGPP__
-        /* The DJGPP uses non-zero segment bases and microcode update needs linear address */
-        patchlin1 += base;
-#endif
-
-        for (i=0;i<2048;i++) {
-            uint8_t *p = (uint8_t *) hdr1;
-            uint64_t start, stop;
-            printf("Load on corrupt offset: %04x ", i);
-            tmp = p[i];
-            /* make sure byte is changed */
-            p[i]++;
-            start = rdtsc();
-            wrmsr(IA32_BIOS_UPDT_TRIG, patchlin1, 0);
-            stop = rdtsc();
-            testlevel = get_patchlvl();
-            if (testlevel != newlevel) {
-                 printf("OK");
-            } else {
-                 printf("FAILED");
-            }
-            printf(", took %lld cycles\n", (unsigned long long) stop - start);
-            wrmsr(IA32_BIOS_UPDT_TRIG, patchlin, 0);
-            p[i] = tmp;
-        }
+    if (dump_ucoderom_flag) {
+        dump_ucoderom(fname);
+    } else if (test_ucode_flag) {
+        assert(testucode != NULL);
+        test_ucode_structure(fname, testucode);
+    } else {
+        update_ucode(fname);
     }
 
     return 0;
