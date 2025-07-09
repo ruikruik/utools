@@ -4,7 +4,21 @@ CFLAGS += $(CFLAGS-$@) -O2
 CFLAGS-utool = -m32
 CFLAGS-microload = -m32
 
-all: microload utool ucode-66a ucode-652 ucode-634 msrom2scramble
+all: microload utool ucode-66a ucode-652 ucode-634 msrom2scramble msromdumper-66a msromdumper-634
+
+msromdumper-66a:
+	cat patches/ucode-exit.txt > patches/66a/msromdumper-ucode.gen
+	sed -e 's/ROMDUMPER_DONE/UROM_2B7A/g' < patches/msromdumper-ucode.txt >> patches/66a/msromdumper-ucode.gen
+	python ../p6tools/simpleas.py patches/66a/msromdumper-ucode.gen > patches/66a/msromdumper-ucode_unscrambled.txt
+	python ../p6tools/scramble.py patches/66a/msromdumper-ucode_unscrambled.txt > patches/66a/msromdumper-ucode.hex
+	../patchtools_pub/patchtools -c -p patches/66a/msromdumper-ucode-66a.dat -i patches/66a/msromdumper-66a.txt
+
+msromdumper-634:
+	cat patches/ucode-entry-bom.txt > patches/634/msromdumper-ucode.gen
+	sed -e 's/ROMDUMPER_DONE/UROM_09fa/g' < patches/msromdumper-ucode.txt >> patches/634/msromdumper-ucode.gen
+	python ../p6tools/simpleas.py patches/634/msromdumper-ucode.gen > patches/634/msromdumper-ucode_unscrambled.txt
+	python ../p6tools/scramble.py patches/634/msromdumper-ucode_unscrambled.txt > patches/634/msromdumper-ucode.hex
+	../patchtools_pub/patchtools -c -p patches/634/msromdumper-ucode-634.dat -i patches/634/msromdumper-634.txt
 
 ucode-66a:
 	cat patches/ucode-exit.txt > patches/66a/utool-ucode.gen
@@ -38,3 +52,5 @@ clean :
 	rm -f patches/66a/utool-ucode.hex patches/66a/utool-ucode-66a.dat patches/66a/utool-ucode.gen patches/66a/utool-ucode_unscrambled.txt
 	rm -f patches/652/utool-ucode.hex patches/652/utool-ucode-652.dat patches/652/utool-ucode.gen patches/652/utool-ucode_unscrambled.txt 
 	rm -f patches/634/utool-ucode.hex patches/634/utool-ucode-634.dat patches/634/utool-ucode.gen patches/634/utool-ucode_unscrambled.txt 
+	rm -f patches/634/msromdumper-ucode.hex patches/634/msromdumper-ucode-634.dat patches/634/msromdumper-ucode.gen patches/634/msromdumper-ucode_unscrambled.txt
+	rm -f patches/66a/msromdumper-ucode.hex patches/66a/msromdumper-ucode-66a.dat patches/66a/msromdumper-ucode.gen patches/66a/msromdumper-ucode_unscrambled.txt
