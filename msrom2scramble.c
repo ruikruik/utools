@@ -73,6 +73,8 @@ uint32_t ucode_scrambled[8];
 int dw2bit[8][32];
 int dw2dw[8][32];
 
+int scram2rom[256];
+
 int main(int argc, char *argv[])
 {
     unsigned int bit, dw, i, b;
@@ -107,28 +109,36 @@ int main(int argc, char *argv[])
     }
 
 #if 0
+    for (bit = 0; bit < 256; bit++) {
+        scram2rom[bit] = -1;
+    }
+
     printf("MSROM to SCRAMBLED:\n");
     for (dw = 0; dw < 8; dw++) {
         for (bit = 0; bit < 32; bit++) {
-            int b = dw2dw[dw][bit] * 32 + dw2bit[dw][bit];
+            int bb = dw2dw[dw][bit] * 32 + dw2bit[dw][bit];
             printf("[%d] -> [", dw * 32 + bit);
-            if (b > 0) {
-                printf("%d]\n", b);
+            if (bb > 0) {
+                printf("%d]\n", bb);
+                scram2rom[bb] = dw * 32 + bit;
             } else {
                 printf("NC]\n");
             }
         }
     }
-#endif
-    for (dw = 0; dw < 8; dw++) {
-        for (bit = 0; bit < 32; bit++) {
-            if (ucode[dw] & (1UL << bit)) {
-                ucode_scrambled[dw2dw[dw][bit]] |=
-                    (1UL << dw2bit[dw][bit]);
-            }
-        }
-    }
 
+    printf("SCRAMBLED to MSROM:\n");
+    for (bit = 0; bit < 256; bit++) {
+            int bb = scram2rom[bit];
+            printf("[%d] -> [", bit);
+            if (bb > 0) {
+                printf("%d]\n", bb);
+            } else {
+                printf("NC]\n");
+            }
+
+    }
+#endif
     char *ts;
     FILE *file;
     int addr, raddr;
