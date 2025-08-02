@@ -113,7 +113,7 @@ void usage( const char *reason ) {
 }
 
 void parse_args( int argc, char *const *argv, uint32_t *drange, uint32_t *idxaddr) {
-    char opt;
+    int opt;
     while ( (opt = getopt( argc, argv, "hR:wrufd:" )) != -1 ) {
         switch( opt ) {
             case 'R':

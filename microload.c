@@ -264,7 +264,7 @@ void usage( const char *reason ) {
 }
 
 static void parse_args( int argc, char *const *argv, char **testucode) {
-    char opt;
+    int opt;
     while ( (opt = getopt( argc, argv, "hdt:" )) != -1 ) {
         switch( opt ) {
             case 'd':
