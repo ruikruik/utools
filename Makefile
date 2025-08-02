@@ -1,5 +1,5 @@
 
-CFLAGS += $(CFLAGS-$@) -O2
+CFLAGS += $(CFLAGS-$@) -O2 -Wall -Wextra
 
 CFLAGS-utool = -m32
 CFLAGS-microload = -m32
@@ -57,4 +57,4 @@ utool : utool.c
 msrom2scramble : msrom2scramble.c
 
 clean :
-	rm -f $(UCODE) $(DOTEXE) $(EXE)
+	rm -f $(UCODE) $(DOTEXE) $(EXEC)

@@ -119,6 +119,7 @@ static int wrmsr( uint32_t msra, uint64_t val) {
         return 1;
     }
 #endif
+    return 0;
 }
 
 /* DJGPP has broken implementation of posix_memalign / memalign */
@@ -150,11 +151,13 @@ static void cpuid( uint32_t leaf, cpuid_opt_t *opt ) {
 }
 
 static uint32_t get_patchlvl() {
+    int r;
     cpuid_opt_t opt;
     uint32_t msrv[2];
     wrmsr(IA32_BIOS_SIGN_ID, 0);
     cpuid(1, &opt);
-    rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    r = rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    assert(r == 0);
     return msrv[1];
 }
 
@@ -172,10 +175,9 @@ static uint32_t get_platid(void) {
 }
 
 static void print_cpuinfo(void) {
-    uint32_t msrv[2];
     char brand[13];
     cpuid_opt_t opt;
-    uint32_t leafs, l;
+    uint32_t leafs;
     cpuid( 0, &opt );
     leafs = opt.r_eax;
     brand[12] = 0;
@@ -307,7 +309,7 @@ static uint64_t get_lin_addr(void *ptr)
 
 static void dump_ucoderom(char *fname)
 {
-    int j;
+    int j, r;
     patch_hdr_t *hdr;
     uint32_t msrv[2];
     uint32_t size;
@@ -330,7 +332,8 @@ static void dump_ucoderom(char *fname)
     wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
     assert(ucode[NUM_UCODE_DW] == TEST_FILL);
 
-    rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    r = rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    assert(r == 0);
     printf("MSR IA32_BIOS_SIGN_ID is %x %x\n", msrv[1], msrv[0]);
 
     printf("Checking if ucode is dumped...\n");
@@ -424,10 +427,8 @@ static void update_ucode(char *fname)
 
 int main(int argc, char* argv[])
 {
-    char msr_file_name[64];
     char *fname;
     char *testucode = NULL;
-    patch_hdr_t *hdr;
 
     parse_args(argc, argv, &testucode);
 

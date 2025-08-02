@@ -19,7 +19,7 @@ typedef struct {
 } cpuid_opt_t;
 
 void cpuid( uint32_t leaf, uint32_t a_ebx, uint32_t a_ecx, cpuid_opt_t *opt ) {
-    uint32_t a,b,c,d;
+    uint32_t a, d;
 
     a = leaf;
 /*    printf("CPUID: EAX %x EBX %x ECX %x\n", leaf, a_ebx, a_ecx); */
@@ -151,7 +151,6 @@ void parse_args( int argc, char *const *argv, uint32_t *drange, uint32_t *idxadd
 int main(int argc, char* argv[])
 {
     char brand[13];
-    uint32_t l, r[2];
     unsigned int i,j;
     uint32_t reg;
     uint32_t val = 0, drange = 1, range = 1, addr, idxaddr;

@@ -77,8 +77,8 @@ int scram2rom[256];
 
 int main(int argc, char *argv[])
 {
-    unsigned int bit, dw, i, b;
-    uint32_t mask, andmask;
+    unsigned int bit, dw, i;
+    uint32_t andmask;
 
     if (argc < 2) {
         printf("need a MS ROM dump input file!\n");
@@ -94,7 +94,6 @@ int main(int argc, char *argv[])
 
     for (dw = 0; dw < 8; dw++) {
         for (bit = 0; bit < 32; bit++) {
-            mask = 1UL << bit;
             for (i = 0; i < 8; i++) {
                 andmask = dw_to_crbusrom[bit][dw] & dw_masks[i][dw];
                 if (andmask) {
@@ -143,7 +142,6 @@ int main(int argc, char *argv[])
     FILE *file;
     int addr, raddr;
     int g;
-    uint32_t *groupbase;
     char line_buf[4096];
 
 
