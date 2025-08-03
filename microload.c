@@ -19,6 +19,7 @@
 #endif
 
 #define DEVMSR "/dev/cpu/0/msr"
+#define UCODE_MAX_SIZE 0x1000
 
 #define IA32_PLATFORM_ID 0x17
 #define IA32_BIOS_SIGN_ID 0x8b
@@ -199,7 +200,7 @@ static patch_hdr_t *load_patch( const char *fn) {
     patch_hdr_t *hdr;
     FILE *file;
     size_t sz;
-    void *patch = malloc_aligned(0x2000, 32);
+    void *patch = malloc_aligned(UCODE_MAX_SIZE, 4096);
     hdr = patch;
     assert(patch != NULL);
     uint32_t plat_id = get_platid();
@@ -212,19 +213,20 @@ static patch_hdr_t *load_patch( const char *fn) {
         fprintf(stderr,"Could not open file %s\n", fn);
         exit( EXIT_FAILURE );
     }
-    sz = fread( patch, 1, 2048, file );
+    sz = fread( patch, 1, UCODE_MAX_SIZE , file );
     fclose( file );
     if ( sz < 2048 ) {
         fprintf( stderr, "short read! %i\n", sz );
     }
 #ifndef __DJGPP__
-    if (mlock(patch, 4096) == -1) {
+    if (mlock(patch, UCODE_MAX_SIZE) == -1) {
         perror("Locking memory failed!");
         exit( EXIT_FAILURE );
     }
 #endif
-
-    if ((hdr->proc_sig != opt.r_eax) || (hdr->proc_flags != plat_id)) {
+    /* If plat_id exists, allow multihit of plat_id */
+    if ((hdr->proc_sig != opt.r_eax) ||
+        (((hdr->proc_flags & plat_id) == 0) && (plat_id != 0))) {
         printf("CPUID / Platform ID mismatch CPU has %08X / %02X patch has %08X / %02X\n",
                     opt.r_eax, plat_id, hdr->proc_sig,hdr->proc_flags);
         exit(EXIT_FAILURE);
@@ -385,7 +387,7 @@ static void test_ucode_structure(char *fname, char *testucode)
     oldlevel = get_patchlvl();
     printf("Current ucode version is %x\n", oldlevel);
 
-    for (i=0;i<2048;i++) {
+    for (i=0;i<UCODE_MAX_SIZE;i++) {
         uint8_t *p = (uint8_t *) hdr1;
         uint64_t start, stop;
         printf("Load on corrupt offset: %04x ", i);
