@@ -135,6 +135,7 @@ static void *malloc_aligned(size_t size, uintptr_t align)
     }
 
     p = (uintptr_t) ret;
+    p+= align;
     return (void *) (p & ~(align - 1));
 }
 
