@@ -1,3 +1,9 @@
+#ifdef __linux__
+#define _GNU_SOURCE
+#include <sched.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -17,6 +23,7 @@
 #else
 #include <sys/mman.h>
 #endif
+
 
 #define DEVMSR "/dev/cpu/0/msr"
 #define UCODE_MAX_SIZE 0x1000
@@ -454,6 +461,19 @@ int main(int argc, char* argv[])
     }
 #endif
     assert(fname != NULL);
+
+#ifdef __linux__
+    /* Currently only CPU 0 is supported, set us there */
+    {
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        CPU_SET(0, &set);
+        if (sched_setaffinity(getpid(), sizeof(set), &set) == -1) {
+            perror("Failed to set affinity to CPU 0");
+            exit(EXIT_FAILURE);
+        }
+    }
+#endif
 
     if (dump_ucoderom_flag) {
         dump_ucoderom(fname);
