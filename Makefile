@@ -9,6 +9,8 @@ CFLAGS-microload = -m32  -static
 PII_UCPUID = 634 652 66a
 PII_DCPUID = 66a 634
 
+PIII_UCPUID = 6d8
+
 PII_DATS += $(foreach cpuid,$(PII_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PII_DATS += $(foreach cpuid,$(PII_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
 
@@ -53,6 +55,10 @@ patches/652/utool-652.gen: patches/ucode-exit.txt patches/utool-ucode.txt
 patches/634/utool-634.gen: patches/ucode-entry.txt patches/utool-ucode.txt
 	sed -e 's/UROM_CPUID_SKIP/UROM_1e21/g' <  patches/ucode-entry.txt > $(@D)/utool-634.gen
 	sed -e 's/UROM_CPUID_DONE/UROM_1401/g' -e 's/UROM_CPUID_OTHER/UROM_0A0A/g' < patches/utool-ucode.txt >> $(@D)/utool-634.gen
+
+patches/6d8/utool-6d8.gen: patches/ucode-exit-pm.txt patches/utool-ucode.txt
+	cat patches/ucode-exit-pm.txt > $(@D)/utool-6d8.gen
+	sed -e 's/UROM_CPUID_DONE/UROM_332C/g' -e 's/UROM_CPUID_OTHER/UROM_1B3E/g' < patches/utool-ucode.txt >> $(@D)/utool-6d8.gen
 
 %.uhex : %.gen
 	python ../p6tools/simpleas.py $< > $@
