@@ -18,7 +18,7 @@ UROM_3FC2       R34        =  SUB_DSZ32       (R34          , CONST_16_001   )
 UROM_3FC4	U_JCC_N_NZ     ( R34 , loop, IA_11, U3_1b )
 UROM_3FC5	R34        =  MOVE_DSZ32     (CONST         , CONST_0        )
 UROM_3FC6	MOVETOCREG     (BBL_CR_D3_H    , R34)
-UROM_3FC8	R34        =  MOVE_DSZ32     (CONST        , CONST_16_abc)
+UROM_3FC8	R34        =  MOVE_DSZ32     (CONST        , CONST_16_bc)
 UROM_3FC9	MOVETOCREG     (BBL_CR_D3_L    , R34)
 UROM_3FCA	U_JMP_NT        ( CONST, ROMDUMPER_DONE, IA_11, U3_1b )
 UROM_3FCC	skip:
