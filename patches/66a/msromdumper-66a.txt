@@ -8,7 +8,7 @@ proc_flags 0x00000008
 data_size  0x00000000
 total_size 0x00000000
 key_seed   0xC0AA8E76
-msram_file msromdumper-ucode.hex
+msram_file msromdumper-66a.hex
 write_creg 0x1B2 0x00000000 0x003E003B
 write_creg 0x1B1 0x00000000 0x00000004
 write_creg 0x1B8 0x00000000 0x01000100
