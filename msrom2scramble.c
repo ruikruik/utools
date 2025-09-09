@@ -116,9 +116,9 @@ int main(int argc, char *argv[])
     for (dw = 0; dw < 8; dw++) {
         for (bit = 0; bit < 32; bit++) {
             int bb = dw2dw[dw][bit] * 32 + dw2bit[dw][bit];
-            printf("[%d] -> [", dw * 32 + bit);
+            printf("dw[%d][%d] -> dw[", dw , bit);
             if (bb > 0) {
-                printf("%d]\n", bb);
+                printf("%d][%d]\n", bb / 32, bb % 32);
                 scram2rom[bb] = dw * 32 + bit;
             } else {
                 printf("NC]\n");
@@ -129,9 +129,9 @@ int main(int argc, char *argv[])
     printf("SCRAMBLED to MSROM:\n");
     for (bit = 0; bit < 256; bit++) {
             int bb = scram2rom[bit];
-            printf("[%d] -> [", bit);
+            printf("dw[%d][%d] -> dw[", bit / 32, bit % 32 );
             if (bb > 0) {
-                printf("%d]\n", bb);
+                printf("%d][%d]\n", bb / 32, bb % 32);
             } else {
                 printf("NC]\n");
             }
