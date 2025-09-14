@@ -7,7 +7,7 @@ CFLAGS-utool = -m32 -static
 CFLAGS-microload = -m32  -static
 
 PII_UCPUID = 634 652 66a
-PII_DCPUID = 66a 634
+PII_DCPUID = 66a 634 651
 
 PIII_UCPUID = 6d8
 
@@ -35,6 +35,10 @@ microload : microload.c
 
 %.dat: %.txt %.hex
 	../patchtools_pub/patchtools -c -p $@ -i $(filter %.txt,$<)
+
+patches/651/msromdumper-651.gen: patches/ucode-entry-bom.txt patches/msromdumper-ucode.txt
+	cat patches/ucode-entry-bom.txt > $(@D)/msromdumper-651.gen
+	sed -e 's/ROMDUMPER_DONE/UROM_0f5c/g' < patches/msromdumper-ucode.txt >> $(@D)/msromdumper-651.gen
 
 patches/634/msromdumper-634.gen: patches/ucode-entry-bom.txt patches/msromdumper-ucode.txt
 	cat patches/ucode-entry-bom.txt > $(@D)/msromdumper-634.gen
