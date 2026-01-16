@@ -357,13 +357,14 @@ static uint64_t get_lin_addr(void *ptr)
 
 static void dump_ucoderom(char *fname)
 {
-    int j, r;
+    int j, r, num_ucode_dw;
     patch_hdr_t *hdr;
     uint32_t msrv[2];
-    uint32_t size;
+    uint32_t size, addr, dw_per_triplet;
     uint32_t *ucode;
     uint64_t patchlin;
 
+    num_ucode_dw = NUM_UCODE_DW;
     size = (NUM_UCODE_DW  + 1) * sizeof(uint32_t);
     ucode = malloc_aligned(size, 32);
 
@@ -373,6 +374,13 @@ static void dump_ucoderom(char *fname)
 
     hdr = load_patch(fname);
     patchlin = get_lin_addr(&hdr->udata[0]);
+    dw_per_triplet = 8;
+
+    if (hdr->proc_sig < 0x630) {
+        dw_per_triplet = 7;
+        num_ucode_dw = 0x7000;
+        assert(num_ucode_dw < NUM_UCODE_DW);
+    }
 
     printf("loading patch from 0x%08LX, ucode will be at 0x%08LX...\n", patchlin, ucode_lin);
     /* communicate the buffer in hi bits of IA32_BIOS_SIGN_ID */
@@ -411,9 +419,11 @@ static void dump_ucoderom(char *fname)
         return;
     }
 
-    for (j = 0;j < NUM_UCODE_DW;j++) {
-        if (((j % 8) == 0)) {
-            printf("\n%04X:", j);
+    addr = 0;
+    for (j = 0;j < num_ucode_dw;j++) {
+        if (((j % dw_per_triplet) == 0)) {
+            printf("\n%04X:", addr);
+            addr += 8;
         }
         printf(" %08X", ucode[j]);
     }
@@ -492,7 +502,6 @@ int main(int argc, char* argv[])
         usage("Wrong parameter count");
         exit(127);
     }
-
 
     assert(fname != NULL);
 #ifdef __DJGPP__
