@@ -3,7 +3,10 @@
 #include <sched.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
+#include <ucontext.h>
 #endif
+#include <setjmp.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -15,7 +18,6 @@
 #include <malloc.h>
 #include <assert.h>
 #ifdef __DJGPP__
-#include <setjmp.h>
 #include <signal.h>
 #include <dpmi.h>
 #include <sys/segments.h>
@@ -58,6 +60,10 @@ typedef struct __attribute__((packed)) {
 } patch_hdr_t;
 
 int test_ucode_flag, help_flag, dump_ucoderom_flag;
+int fd;
+
+jmp_buf rdpmc_gpf;
+extern void rdpmc_eip(void);
 
 #ifdef __DJGPP__
 jmp_buf wrmsr_gpf;
@@ -74,12 +80,44 @@ static void sighandler(int s)
     } else if (__djgpp_exception_state->__eip == ((uint32_t) &wrmsr_eip)) {
         /* recover the WRMSR */
         longjmp(wrmsr_gpf, 1);
+    } else if (__djgpp_exception_state->__eip == ((uint32_t) &rdpmc_eip)) {
+        /* recover the RDPMC */
+        longjmp(rdpmc_gpf, 1);
     }
     /* let default handler run */
 }
 #else
-int fd;
+static void sighandler(
+    __attribute__ ((unused)) int mysignal,
+    __attribute__ ((unused)) siginfo_t *si,
+    void* arg)
+{
+    ucontext_t *context = (ucontext_t *)arg;
+    if (context->uc_mcontext.gregs[REG_EIP] == (greg_t) (&rdpmc_eip)) {
+        /* recover the RDPMC */
+        longjmp(rdpmc_gpf, 1);
+    }
+    /* let default handler run */
+}
 #endif
+static int rdpmc( uint32_t pctr_arg, uint32_t *opt ) {
+    uint32_t lo, hi;
+
+    if (setjmp(rdpmc_gpf) == 0) {
+        __asm volatile (
+            "mov %0, %%ecx\t\n"
+            "_rdpmc_eip:\t\nrdpmc_eip: rdpmc\t\n"
+            : "=a" (lo), "=d" (hi)  // outputs
+            : "c" (pctr_arg)        // inputs
+        );
+    } else {
+        return 1;
+    }
+
+    opt[0] = lo;
+    opt[1] = hi;
+    return 0;
+}
 
 static int rdmsr( uint32_t msra , uint32_t *opt ) {
     uint64_t val;
@@ -359,6 +397,12 @@ static void dump_ucoderom(char *fname)
         cpuid(1, &opt);
     }
 
+    if (ucode[0x1000] == TEST_FILL) {
+        uint32_t rdpmcv[2];
+        printf("Fail, but trying to re-trigger it using RDPMC\n");
+        rdpmc(0, rdpmcv);
+    }
+
     rdmsr(IA32_BIOS_SIGN_ID, msrv);
     printf("MSR IA32_BIOS_SIGN_ID is %x %x\n", msrv[1], msrv[0]);
 
@@ -449,20 +493,24 @@ int main(int argc, char* argv[])
         exit(127);
     }
 
+
+    assert(fname != NULL);
 #ifdef __DJGPP__
     signal(SIGSEGV, sighandler);
     /* DOSBOX emulates WRMSR fault as SIGILL */
     signal(SIGILL, sighandler);
 #else
+    struct sigaction action;
+    action.sa_sigaction = &sighandler;
+    action.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &action, NULL);
+
     fd = open(DEVMSR, O_RDWR);
     if (fd < 0) {
         perror(DEVMSR " open");
         exit(EXIT_FAILURE);
     }
-#endif
-    assert(fname != NULL);
 
-#ifdef __linux__
     /* Currently only CPU 0 is supported, set us there */
     {
         cpu_set_t set;
