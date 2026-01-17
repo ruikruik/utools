@@ -2,97 +2,97 @@
 ; low 32-bits of MSR 0x8b serves as debug.
 
 UROM_3FB2	TMP0 = MOVEFROMCREG   (BBL_CR_D3_H   , BBL_CR_D3_H)
-UROM_3FB4	TMP0 = SUB_DSZ32 ( TMP0 , CONST_16_000 )
-UROM_3FB5	U_JCC_N_Z     (TMP0 , skip, IA_11, U3_1b )
-UROM_3FB6	R34        =  MOVE_DSZ32     (CONST_0        , CONST_0        )
-UROM_3FB8	R34 = MOVETOCREG     (MS_CR_ADDR    , R34) ; IMPORTANT: the R34 is kind of dependency so that previous op won't execute until it finished
-UROM_3FB9	R34 = MOVEFROMCREG   (MS_CR_DATA    , R34) ; IMPORTANT: the R34 is kind of dependency so that previous op won't execute until it finished
-UROM_3FBA	R34 = MOVE_DSZ32 (CONST, CONST_16_001)
-UROM_3FBC	R34 =  SHL_DSZ32      (R34           , CONST_16_00f   )
+UROM_3FB4	TMP0 = SUB.DSZ32 ( TMP0 , CONST_16 )
+UROM_3FB5	U_JCC.NT.Z     (TMP0 , skip, IA.11, U3.1b )
+UROM_3FB6	TMPC        =  MOVE.DSZ32     (CONST_0        , CONST_0        )
+UROM_3FB8	TMPC = MOVETOCREG     (MS_CR_ADDR    , TMPC) ; IMPORTANT: the TMPC is kind of dependency so that previous op won't execute until it finished
+UROM_3FB9	TMPC = MOVEFROMCREG   (MS_CR_DATA    , TMPC) ; IMPORTANT: the TMPC is kind of dependency so that previous op won't execute until it finished
+UROM_3FBA	TMPC = MOVE.DSZ32 (CONST, CONST_16+001)
+UROM_3FBC	TMPC =  SHL.DSZ32      (TMPC           , CONST_16+00f   )
 UROM_3FBD	loop:
-UROM_3FBD	TMP1 = MOVEFROMCREG   (MS_CR_DATA    , R34 ) ; IMPORTANT: the R34 is kind of dependency so that previous op won't execute until it finished
-UROM_3FBE	STRD           (CONST_0       , TMP1           )
-UROM_3FC0	STA40_SC1_DSZ32(CONST_06_000  , TMP0           , LINSEG   )
-UROM_3FC1	TMP0 = ADD_DSZ32       (TMP0          , CONST_16_004   )
-UROM_3FC2       R34        =  SUB_DSZ32       (R34          , CONST_16_001   )
-UROM_3FC4	U_JCC_N_NZ     ( R34 , loop, IA_11, U3_1b )
-UROM_3FC5	R34        =  MOVE_DSZ32     (CONST         , CONST_0        )
-UROM_3FC6	MOVETOCREG     (BBL_CR_D3_H    , R34)
-UROM_3FC8	R34        =  MOVE_DSZ32     (CONST        , CONST_16_bc)
-UROM_3FC9	MOVETOCREG     (BBL_CR_D3_L    , R34)
-UROM_3FCA	U_JMP_NT        ( CONST, ROMDUMPER_DONE, IA_11, U3_1b )
+UROM_3FBD	TMP1 = MOVEFROMCREG   (MS_CR_DATA    , TMPC ) ; IMPORTANT: the TMPC is kind of dependency so that previous op won't execute until it finished
+UROM_3FBE	STRD.DSZ32           (CONST_0       , TMP1           )
+UROM_3FC0	STA.M40.SC1.DSZ32(CONST_06  , TMP0           , LINSEG   )
+UROM_3FC1	TMP0 = ADD.DSZ32       (TMP0          , CONST_16+004   )
+UROM_3FC2       TMPC        =  SUB.DSZ32       (TMPC          , CONST_16+001   )
+UROM_3FC4	U_JCC.NT.NZ     ( TMPC , loop, IA.11, U3.1b )
+UROM_3FC5	TMPC        =  MOVE.DSZ32     (CONST         , CONST_0        )
+UROM_3FC6	MOVETOCREG     (BBL_CR_D3_H    , TMPC)
+UROM_3FC8	TMPC        =  MOVE.DSZ32     (CONST        , CONST_16+bc)
+UROM_3FC9	MOVETOCREG     (BBL_CR_D3_L    , TMPC)
+UROM_3FCA	U_JMP.NT        ( CONST, ROMDUMPER_DONE, IA.11, U3.1b )
 UROM_3FCC	skip:
-UROM_3FCC	R34        =  MOVE_DSZ32     (CONST        , CONST_16_042)
-UROM_3FCD	MOVETOCREG     (BBL_CR_D3_L    , R34)
-UROM_3FCE	U_JMP_NT        ( CONST, ROMDUMPER_DONE, IA_11, U3_1b )
-UROM_3FD0	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FCC	TMPC        =  MOVE.DSZ32     (CONST        , CONST_16+042)
+UROM_3FCD	MOVETOCREG     (BBL_CR_D3_L    , TMPC)
+UROM_3FCE	U_JMP.NT        ( CONST, ROMDUMPER_DONE, IA.11, U3.1b )
+UROM_3FD0	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD1	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD1	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD2	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD2	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD4	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD4	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD5	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD5	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD6	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD6	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD8	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD8	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FD9	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FD9	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FDA	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FDA	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FDC	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FDC	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FDD	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FDD	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FDE	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_08 )
+UROM_3FDE	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.08 )
 
-UROM_3FE0	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE0	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FE1	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE1	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FE2	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_10 )
+UROM_3FE2	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.10 )
 
-UROM_3FE4	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE4	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FE5	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE5	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FE6	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_10 )
+UROM_3FE6	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.10 )
 
-UROM_3FE8	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE8	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FE9	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FE9	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FEA	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_18 )
+UROM_3FEA	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.18 )
 
-UROM_3FEC	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FEC	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FED	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FED	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FEE	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_18 )
+UROM_3FEE	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.18 )
 
-UROM_3FF0	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF0	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FF1	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF1	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FF2	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_18 )
+UROM_3FF2	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.18 )
 
-UROM_3FF4	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF4	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FF5	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF5	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FF6	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_10 )
+UROM_3FF6	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.10 )
 
-UROM_3FF8	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF8	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FF9	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FF9	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FFA	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_08 )
+UROM_3FFA	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.08 )
 
-UROM_3FFC	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FFC	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FFD	                           MOVE_DSZ32     (CONST         , CONST_0        )
+UROM_3FFD	                           MOVE.DSZ32     (CONST         , CONST_0        )
 
-UROM_3FFE	                           MOVE_DSZ32     (CONST         , CONST_0        , U3_10 )
+UROM_3FFE	                           MOVE.DSZ32     (CONST         , CONST_0        , U3.10 )

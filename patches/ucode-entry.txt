@@ -1,7 +1,7 @@
 ; this code runs on platforms with cpuid < 0x652, likely the PLA puts entry point to CPUID instruction into MSRAM
 
-UROM_3FAC	 BOM                     OP_000         (ALIAS_014     , ALIAS_014      )
-UROM_3FAD                                STRD           (CONST_0       , CONST_0        )
-UROM_3FAE                                OP_134         (CONST_06_000  , CONST_06_000   )
-UROM_3FB0                                U_JCC_N_Z      (ALIAS_021     , UROM_CPUID_SKIP , IA_11 , U3_1b ) ; Never taken? Serialize?
-UROM_3FB1                                MOVE_DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAC	 BOM                     UOP.000         (ALIAS.014     , ALIAS.014      )
+UROM_3FAD                                STRD.DSZ32      (CONST_0       , CONST_0        )
+UROM_3FAE                                UOP.134         (CONST_6  , CONST_6   )
+UROM_3FB0                                U_JCC.NT.Z      (ALIAS.021     , UROM_CPUID_SKIP , IA.11 , U3.1b ) ; Never taken? Serialize?
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
