@@ -59,7 +59,7 @@ typedef struct __attribute__((packed)) {
     uint8_t       udata[0];
 } patch_hdr_t;
 
-int test_ucode_flag, help_flag, dump_ucoderom_flag;
+int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag;
 int fd;
 
 jmp_buf rdpmc_gpf;
@@ -308,15 +308,20 @@ void usage( const char *reason ) {
     "\t\t                  To make it work each update must be different revision\n"
     "\t\t-d                Dump the microcode ROM to RAM using a special microcode\n"
     "\t\t                  update.\n"
+    "\t\t-c                Dump the microcode constant ROM to RAM using a special\n"
+    "\t\t                  microcode update.\n"
     "\t\t\n");
 }
 
 static void parse_args( int argc, char *const *argv, char **testucode) {
     int opt;
-    while ( (opt = getopt( argc, argv, "hdt:" )) != -1 ) {
+    while ( (opt = getopt( argc, argv, "hdct:" )) != -1 ) {
         switch( opt ) {
             case 'd':
                 dump_ucoderom_flag = 1;
+                break;
+            case 'c':
+                dump_crom_flag = 1;
                 break;
             case 't':
                 test_ucode_flag = 1;
@@ -429,6 +434,54 @@ static void dump_ucoderom(char *fname)
     }
     printf("\n");
 }
+#define NUM_CROM_QW (512)
+
+static void dump_crom(char *fname)
+{
+    int i, j, r;
+    char tmp_buff[128];
+    patch_hdr_t *hdr;
+    uint32_t msrv[2];
+    uint32_t size;
+    uint64_t *crom;
+    uint64_t patchlin;
+
+
+    size = (NUM_CROM_QW  + 1) * sizeof(uint64_t);
+    crom = malloc_aligned(size, 32);
+
+    memset(crom, TEST_FILL, size);
+
+    for (i=0;i<(NUM_CROM_QW);i+=16) {
+
+        uint64_t crom_lin = get_lin_addr(&crom[i]);
+
+
+        snprintf(tmp_buff, sizeof(tmp_buff), "%s-%d.dat", fname, i);
+
+        hdr = load_patch(tmp_buff);
+        patchlin = get_lin_addr(&hdr->udata[0]);
+
+        /* communicate the buffer in hi bits of IA32_BIOS_SIGN_ID */
+        wrmsr(IA32_BIOS_SIGN_ID, crom_lin << 32);
+        wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
+
+        r = rdmsr(IA32_BIOS_SIGN_ID, msrv);
+        assert(r == 0);
+        wrmsr(IA32_BIOS_SIGN_ID, crom_lin << 32);
+        cpuid_opt_t opt;
+        cpuid(1, &opt);
+#if 0
+/* FIXME: ISRA optimizes it to multiple locations */
+        uint32_t rdpmcv[2];
+        rdpmc(0, rdpmcv);
+#endif
+    }
+
+    for (j = 0;j < NUM_CROM_QW;j++) {
+        printf("%03X: %016LX\n", j, crom[j]);
+    }
+}
 
 static void test_ucode_structure(char *fname, char *testucode)
 {
@@ -537,6 +590,8 @@ int main(int argc, char* argv[])
     } else if (test_ucode_flag) {
         assert(testucode != NULL);
         test_ucode_structure(fname, testucode);
+    } else if (dump_crom_flag) {
+        dump_crom(fname);
     } else {
         update_ucode(fname);
     }
