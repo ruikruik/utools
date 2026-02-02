@@ -1,0 +1,23 @@
+; Dump the MSROM into RAM using high 32 bits of MSR 0x8b as a linear address where to place it
+; low 32-bits of MSR 0x8b serves as debug.
+.org 0x3fb2
+    TMP0 = MOVEFROMCREG   (BBL_CR_D3_H   , BBL_CR_D3_H)
+    TMP0 = SUB.DSZ32 ( TMP0 , CONST_16 )
+    U_JCC.NT.NZ     (TMP0 , dodump, IA.11, U3.1b )
+    TMPC        =  MOVE.DSZ32     (CONST        , CONST_16+042)
+    MOVETOCREG     (BBL_CR_D3_L    , TMPC)
+    U_JMP.NT        ( CONST, ROMDUMPER_DONE, IA.11, U3.1b )
+
+ dodump:
+UROM_3FBA  TMPC        =  MOVE.DSZ32     (CONST         , CONST_0        )
+
+.org 0x3fbc
+
+; put here
+;    STRD.DSZ32           (CONST_0       , CONSTROM.000 )
+;    STA.M40.SC1.DSZ64(CONST_04+0  , TMP0          , LINSEG  )
+;    ...
+;    end with:
+
+;    MOVETOCREG     (BBL_CR_D3_H    , TMPC)
+;    U_JMP.NT        ( CONST, ROMDUMPER_DONE, IA.11, U3.1b )
