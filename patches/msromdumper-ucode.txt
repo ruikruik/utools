@@ -11,7 +11,11 @@ UROM_3FBA	TMPC = MOVE.DSZ32 (CONST, CONST_16+001)
 UROM_3FBC	TMPC =  SHL.DSZ32      (TMPC           , CONST_16+00f   )
 UROM_3FBD	loop:
 UROM_3FBD	TMP1 = MOVEFROMCREG   (MS_CR_DATA    , TMPC ) ; IMPORTANT: the TMPC is kind of dependency so that previous op won't execute until it finished
-UROM_3FBE	STRD.DSZ32           (CONST_0       , TMP1           )
+.ifdef PENTIUMM
+UROM_3FBE	STRD.DSZ32           (TMP1, CONST_0)
+.else
+UROM_3FBE	STRD.DSZ32           (CONST_0,     TMP1)
+.endif
 UROM_3FC0	STA.M40.SC1.DSZ32(CONST_06  , TMP0           , LINSEG   )
 UROM_3FC1	TMP0 = ADD.DSZ32       (TMP0          , CONST_16+004   )
 UROM_3FC2       TMPC        =  SUB.DSZ32       (TMPC          , CONST_16+001   )
