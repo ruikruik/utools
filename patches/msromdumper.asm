@@ -1,3 +1,37 @@
+
+.ifdef PROLOGUE_CPUID_PPRO
+UROM_3FAC	 BOM                     MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAD                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAE                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+.endif
+
+.ifdef PROLOGUE_CPUID
+UROM_3FAC        BOM                     UOP.000         (ALIAS.014     , ALIAS.014      )
+UROM_3FAD                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAE                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+.endif
+
+.ifdef PROLOGUE_UJCC
+UROM_3FAC                                 U_JCC.NT.Z      (ALIAS.1ad     , UROM_3FAD      , IA.11 , U2.08 , U3.1b )
+UROM_3FAD addr_3FAD:
+UROM_3FAD       EOM.Fl2                   UOP.0D8         (CONST_0       , EIP_30         , U2.20 )
+UROM_3FAE                                MOVE.DSZ32(CONST         , CONST_0)
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )
+.endif
+
+.ifdef PROLOGUE_SIGEVENT
+UROM_3FAC	                          SIGEVENT       (CONST_16+0AB  , CONST_16+0AB  , U2.08)
+UROM_3FAD	                          UOP.0D8         (CONST_0       , EIP_30        , U2.20)
+UROM_3FAE	EOM.Fl2                   UOP.0D4         (CONST_0       , CONST_0       )
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )
+.endif
+
 ; Dump the MSROM into RAM using high 32 bits of MSR 0x8b as a linear address where to place it
 ; low 32-bits of MSR 0x8b serves as debug.
 

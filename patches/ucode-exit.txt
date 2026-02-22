@@ -1,8 +1,0 @@
-UROM_3FAC                                 U_JCC.NT.Z      (ALIAS.1ad     , UROM_3FAD      , IA.11 , U2.08 , U3.1b )
-
-UROM_3FAD addr_3FAD:
-UROM_3FAD       EOM.Fl2                   UOP.0D8         (CONST_0       , EIP_30         , U2.20 )
-
-UROM_3FAE                                MOVE.DSZ32(CONST         , CONST_0)
-UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
-UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )

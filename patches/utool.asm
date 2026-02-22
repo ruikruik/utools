@@ -1,3 +1,45 @@
+.ifdef PROLOGUE_CPUID_PPRO
+UROM_3FAC	 BOM                     MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAD                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAE                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+.endif
+
+.ifdef PROLOGUE_CPUID
+UROM_3FAC        BOM                     UOP.000         (ALIAS.014     , ALIAS.014      )
+UROM_3FAD                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FAE                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+.endif
+
+.ifdef PROLOGUE_CPUID_FULL
+; this code runs on platforms with cpuid < 0x652, likely the PLA puts entry point to CPUID instruction into MSRAM
+UROM_3FAC	 BOM                     UOP.000         (ALIAS.014     , ALIAS.014      )
+UROM_3FAD                                STRD.DSZ32      (CONST_0       , CONST_0        )
+UROM_3FAE                                UOP.134         (CONST_6  , CONST_6   )
+UROM_3FB0                                U_JCC.NT.Z      (ALIAS.021     , CPUID_SKIP , IA.11 , U3.1b ) ; Never taken? Serialize?
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
+.endif
+
+.ifdef PROLOGUE_UJCC
+UROM_3FAC                                 U_JCC.NT.Z      (ALIAS.1ad     , UROM_3FAD      , IA.11 , U2.08 , U3.1b )
+UROM_3FAD addr_3FAD:
+UROM_3FAD       EOM.Fl2                   UOP.0D8         (CONST_0       , EIP_30         , U2.20 )
+UROM_3FAE                                MOVE.DSZ32(CONST         , CONST_0)
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )
+.endif
+
+.ifdef PROLOGUE_SIGEVENT
+UROM_3FAC	                          SIGEVENT       (CONST_16+0AB  , CONST_16+0AB  , U2.08)
+UROM_3FAD	                          UOP.0D8         (CONST_0       , EIP_30        , U2.20)
+UROM_3FAE	EOM.Fl2                   UOP.0D4         (CONST_0       , CONST_0       )
+UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
+UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )
+.endif
+
 UROM_3FB2 new_patch_start:
 UROM_3FB2	                          TMPC = SUB.DSZ32 ( EAX , CONST_0 )
 UROM_3FB4	                          U_JCC.NT.NZ     ( TMPC , cpuid_try_leaf42, IA.11, U3.1b )
@@ -28,7 +70,7 @@ UROM_3FCE	                          ECX = OR.DSZ32  ( ECX,   CONST_16+06e )
 UROM_3FD0	                          ECX = SHL.DSZ32 ( ECX,   CONST_16+008 )
 UROM_3FD1	                          ECX = OR.DSZ32  ( ECX,   CONST_16+072 )
 
-UROM_3FD2	                          U_JMP.NT        ( CONST, UROM_CPUID_DONE, IA.11, U3.1b )
+UROM_3FD2	                          U_JMP.NT        ( CONST, CPUID_DONE, IA.11, U3.1b )
 
 UROM_3FD4  cpuid_try_leaf42:
 UROM_3FD4	                          TMPC = SUB.DSZ32 ( EAX,   CONST_16+042)
@@ -75,8 +117,8 @@ UROM_3FF6	                          MOVE.DSZ32     (CONST         , CONST_0)
 UROM_3FF8  cpuid_try_other:
 UROM_3FF8	                          EBX = MOVE.DSZ32 (CONST, CONST_0)
 UROM_3FF9	                          ECX = MOVE.DSZ32 (CONST, CONST_0)
-UROM_3FFA	                          U_JMP.NT        ( CONST, UROM_CPUID_OTHER, IA.11, U3.1b )
+UROM_3FFA	                          U_JMP.NT        ( CONST, CPUID_OTHER, IA.11, U3.1b )
 UROM_3FFC	                          MOVE.DSZ32 (CONST, CONST_0)
 UROM_3FFD  cpuid_leaf4x_done:
 UROM_3FFD	                          ECX = MOVE.DSZ32( CONST , CONST_16+042 )
-UROM_3FFE	                          U_JMP.NT        ( CONST, UROM_CPUID_DONE, IA.11, U3.1b )
+UROM_3FFE	                          U_JMP.NT        ( CONST, CPUID_DONE, IA.11, U3.1b )

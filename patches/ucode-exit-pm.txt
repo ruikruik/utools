@@ -1,5 +1,0 @@
-UROM_3FAC	                          SIGEVENT       (CONST_16+0AB  , CONST_16+0AB  , U2.08)
-UROM_3FAD	                          UOP.0D8         (CONST_0       , EIP_30        , U2.20)
-UROM_3FAE	EOM.Fl2                   UOP.0D4         (CONST_0       , CONST_0       )
-UROM_3FB0                                MOVE.DSZ32( CONST , CONST_0 )
-UROM_3FB1                                MOVE.DSZ32( CONST , CONST_0 )
