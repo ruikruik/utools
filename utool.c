@@ -148,6 +148,34 @@ void parse_args( int argc, char *const *argv, uint32_t *drange, uint32_t *idxadd
     }
 }
 
+
+#ifdef DEBUG_DESCRIPTOR_CACHE
+#include <sys/types.h>
+#include <asm/ldt.h>
+#include <asm/prctl.h>
+#include <sys/prctl.h>
+
+static void setup_fs_descriptor(void)
+{
+        #define MK_SEL(n) (((n) << 3) | 7)
+
+        struct user_desc ldt;
+
+        ldt.entry_number = 1;
+        ldt.base_addr = 0xdeadbeef;
+        ldt.limit = 0x1fff;
+        ldt.seg_32bit = 1;
+        ldt.contents = MODIFY_LDT_CONTENTS_DATA;
+        ldt.read_exec_only = 0;
+        ldt.limit_in_pages = 1;
+        ldt.seg_not_present = 0;
+        ldt.useable = 1;
+        modify_ldt(1, &ldt, sizeof(ldt)); /* write ldt entry */
+
+        asm volatile ("movl %0, %%fs" : : "r" (MK_SEL(1)));
+}
+#endif
+
 int main(int argc, char* argv[])
 {
     char brand[13];
