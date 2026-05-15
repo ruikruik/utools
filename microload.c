@@ -59,7 +59,7 @@ typedef struct __attribute__((packed)) {
     uint8_t       udata[0];
 } patch_hdr_t;
 
-int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag;
+int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag, find_exec_flag;
 int fd;
 
 jmp_buf rdpmc_gpf;
@@ -285,7 +285,7 @@ void usage( const char *reason ) {
     fprintf( stderr,
     "\tmicroload -h\n" );
     fprintf( stderr,
-    "\tmicroload  [-t <testfilename>] <filename> \n\n" );
+    "\tmicroload [-h] [-d] [-c] [-f] [-t <testfilename>] <filename> \n\n" );
 
     if ( !help_flag )
         exit( EXIT_FAILURE );
@@ -309,19 +309,25 @@ void usage( const char *reason ) {
     "\t\t-d                Dump the microcode ROM to RAM using a special microcode\n"
     "\t\t                  update.\n"
     "\t\t-c                Dump the microcode constant ROM to RAM using a special\n"
-    "\t\t                  microcode update.\n"
+    "\t\t                  microcode update. Provide the file prefix as a filename\n"
+    "\t\t-f                Perform a debug tracing over all files with specific prefix\n"
+    "\t\t                  provided as a filename\n"
+
     "\t\t\n");
 }
 
 static void parse_args( int argc, char *const *argv, char **testucode) {
     int opt;
-    while ( (opt = getopt( argc, argv, "hdct:" )) != -1 ) {
+    while ( (opt = getopt( argc, argv, "hfdct:" )) != -1 ) {
         switch( opt ) {
             case 'd':
                 dump_ucoderom_flag = 1;
                 break;
             case 'c':
                 dump_crom_flag = 1;
+                break;
+            case 'f':
+                find_exec_flag = 1;
                 break;
             case 't':
                 test_ucode_flag = 1;
@@ -434,6 +440,70 @@ static void dump_ucoderom(char *fname)
     }
     printf("\n");
 }
+
+#ifdef DEBUG_TRACING
+uint32_t xxx;
+#endif
+
+static void find_exec(char *fname)
+{
+    char tmp_buff[128];
+    int i, r;
+    cpuid_opt_t opt;
+    patch_hdr_t *hdr;
+    uint32_t msrv[2];
+    uint64_t patchlin;
+    /* Use every 4th microcode address for now */
+    for (i=0;i<0x3800;i+=4) {
+
+        /* Invalid address */
+        if ((i % 4) == 3) {
+            continue;
+        }
+
+        snprintf(tmp_buff, sizeof(tmp_buff), "%s-%04x.dat", fname, i);
+//      printf("Trying to breakpoint on cpuid at %s\n", tmp_buff);
+
+        hdr = load_patch(tmp_buff);
+        patchlin = get_lin_addr(&hdr->udata[0]);
+
+        wrmsr(IA32_BIOS_SIGN_ID, 0xdeadbeefaffecafe);
+        wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
+#ifdef DEBUG_TRACING
+        uint32_t rdpmcv[2];
+/* Maybe those can be later auto-discovered in the microcode */
+/* WARNING: inline assembly constrains are WRONG */
+
+//      __asm__ volatile ("mov %%cs, %%ax \nlar %%ax, %%ax\n" : : : "memory", "eax", "cc");
+//      __asm__ volatile ("mov %%cs, %%ax \nlsl %%ax, %%ax\n" : : : "memory", "eax", "cc");
+//      __asm__ volatile ("mov %%cs, (%%eax) \nlar (%%eax), %%ax\n" : : "a" (&xxx) : "memory", "cc");
+//      __asm__ volatile ("mov %%cs, (%%eax) \nlsl (%%eax), %%ax\n" : : "a" (&xxx) : "memory", "cc");
+//      __asm__ volatile ("mov %%cs, %%ax \nlar %%ax, %%ax\n" : : : "memory", "eax", "cc");
+//      __asm__ volatile ("push %%ds\npop %%fs" : : "a" (0x42424242) : "memory", "cc");
+//      __asm__ volatile ("push %%es\npop %%ss" : : "a" (0x42424242) : "memory", "cc");
+//      __asm__ volatile ("pushf \npop %%eax\n" : : "a" (0x42424242) : "memory", "cc");
+//      __asm__ volatile ("smsw %%eax\n" : : "a" (0x42424242) : "memory", "cc");
+
+//      __asm__ volatile ("bts %%bx, (%%ebx)\n" : : "a" (0x42424242), "b" (&xxx) : "memory", "cc");
+//      __asm__ volatile ("lfs (%%ebx), %%ebx\n" : : "a" (0x42424242), "b" (&xxx) : "memory", "cc");
+
+//      __asm__ volatile ("mov %%cs, %%bx \nverw %%bx\n" :  :  "a" (0x42424242) : "memory", "cc", "ebx");
+//      __asm__ volatile ("mov %%cs, %%bx \nverr %%bx\n" :  :  "a" (0x42424242) : "memory", "cc", "ebx");
+//      __asm__ volatile ("mov %%ds, (%%eax) \nmov (%%eax), %%fs\n" : : "a" (&xxx) : "memory", "cc");
+//      rdpmc(0, rdpmcv);
+#endif
+        /* For now look for CPUID leaf 1 */
+        cpuid(1, &opt);
+        r = rdmsr(IA32_BIOS_SIGN_ID, msrv);
+        assert(r == 0);
+        if (msrv[1] != 0xdeadbeef) {
+            printf("ucode trace hit with %s, %x %x\n", tmp_buff, msrv[0], msrv[1]);
+        } else {
+//            printf("%x %x\n", msrv[0], msrv[1]);
+        }
+    }
+}
+
 #define NUM_CROM_QW (512)
 
 static void dump_crom(char *fname)
@@ -592,6 +662,8 @@ int main(int argc, char* argv[])
         test_ucode_structure(fname, testucode);
     } else if (dump_crom_flag) {
         dump_crom(fname);
+    } else if (find_exec_flag) {
+        find_exec(fname);
     } else {
         update_ucode(fname);
     }
