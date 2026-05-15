@@ -8,7 +8,7 @@ CFLAGS += $(CFLAGS-$@) -O2 -Wall -Wextra
 CFLAGS-utool = -m32 -static
 #TODO: might be handy: -Wl,-Tdata=0xA000
 
-CFLAGS-microload = -m32  -static -O0
+CFLAGS-microload = -m32  -static -O2 -Tmicroload.lds
 
 CROM_PART =  0 16 32 48 64 80 96 112 128 144 160 176 192 208 224 240 256 272 288 304 320 336 352 368 384 400 416 432 448 464 480 496
 

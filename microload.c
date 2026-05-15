@@ -59,33 +59,41 @@ typedef struct __attribute__((packed)) {
     uint8_t       udata[0];
 } patch_hdr_t;
 
+
+typedef struct rtable_entry
+{
+    uint32_t eip;
+    uint32_t reeip;
+} rtable_entry_t;
+
+/* defined by linker */
+extern rtable_entry_t _rtable_start;
+extern rtable_entry_t _rtable_end;
+
+#ifdef __DJGPP__
+
+#define ADD_RTABLE(eip, reeip) \
+    ".section .rtable,\"d\" \n" \
+    ".balign 4 \n" \
+    ".long " eip "," reeip "\n" \
+    ".section .text\n"
+#else
+#define ADD_RTABLE(eip, reeip) \
+    ".section .rtable,\"a\" \n" \
+    ".balign 4 \n" \
+    ".long " eip "," reeip "\n" \
+    ".previous\n"
+#endif
+
+struct sigaction old_sigsegv;
+struct sigaction old_sigill;
+
 int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag, find_exec_flag;
 int fd;
 
-jmp_buf rdpmc_gpf;
-extern void rdpmc_eip(void);
-
 #ifdef __DJGPP__
-jmp_buf wrmsr_gpf;
-jmp_buf rdmsr_gpf;
-/* hack to get rdmsr/wrmsr instruction address */
-extern void rdmsr_eip(void);
-extern void wrmsr_eip(void);
-
-static void sighandler(int s)
+static void sighandler(int mysignal)
 {
-    if (__djgpp_exception_state->__eip == ((uint32_t) &rdmsr_eip)) {
-        /* recover the RDMSR */
-        longjmp(rdmsr_gpf, 1);
-    } else if (__djgpp_exception_state->__eip == ((uint32_t) &wrmsr_eip)) {
-        /* recover the WRMSR */
-        longjmp(wrmsr_gpf, 1);
-    } else if (__djgpp_exception_state->__eip == ((uint32_t) &rdpmc_eip)) {
-        /* recover the RDPMC */
-        longjmp(rdpmc_gpf, 1);
-    }
-    /* let default handler run */
-}
 #else
 static void sighandler(
     __attribute__ ((unused)) int mysignal,
@@ -93,49 +101,69 @@ static void sighandler(
     void* arg)
 {
     ucontext_t *context = (ucontext_t *)arg;
-    if (context->uc_mcontext.gregs[REG_EIP] == (greg_t) (&rdpmc_eip)) {
-        /* recover the RDPMC */
-        longjmp(rdpmc_gpf, 1);
-    }
-    /* let default handler run */
-}
 #endif
+    struct sigaction dfl = {0};
+
+    rtable_entry_t *iter = &_rtable_start;
+
+    while (iter < &_rtable_end) {
+
+#ifdef __DJGPP__
+        if (__djgpp_exception_state->__eip == iter->eip) {
+            __djgpp_exception_state->__eip = iter->reeip;
+            longjmp(__djgpp_exception_state, 0);
+        }
+#else
+        if (context->uc_mcontext.gregs[REG_EIP] == (greg_t) iter->eip) {
+            context->uc_mcontext.gregs[REG_EIP] = (greg_t) iter->reeip;
+            return;
+        }
+#endif
+        iter++;
+    }
+    /* Attempt to call default signal handler */
+    dfl.sa_handler = SIG_DFL;
+    sigaction(mysignal, &dfl, NULL);
+    raise(mysignal);
+}
+
 static int rdpmc( uint32_t pctr_arg, uint32_t *opt ) {
     uint32_t lo, hi;
-
-    if (setjmp(rdpmc_gpf) == 0) {
+    int err = 0;
         __asm volatile (
-            "mov %0, %%ecx\t\n"
-            "_rdpmc_eip:\t\nrdpmc_eip: rdpmc\t\n"
-            : "=a" (lo), "=d" (hi)  // outputs
-            : "c" (pctr_arg)        // inputs
+            "1:rdpmc\n"
+            "jmp 3f\n"
+            "2:mov $1, %0\n"
+            "3:\n"
+            ADD_RTABLE("1b", "2b")
+            : "=r" (err), "=a" (lo), "=d" (hi)
+            : "c" (pctr_arg)
         );
-    } else {
-        return 1;
-    }
-
     opt[0] = lo;
     opt[1] = hi;
-    return 0;
+    return err;
 }
 
 static int rdmsr( uint32_t msra , uint32_t *opt ) {
-    uint64_t val;
+    uint64_t val = 0;
+    int ret = 0;
 #ifdef __DJGPP__
-    if (setjmp(rdmsr_gpf) == 0) {
-        asm volatile ( "_rdmsr_eip: rdmsr\n" : "=A" (val) : "c" (msra) );
-    } else {
-        return 1;
-    }
+    asm volatile ( "1: rdmsr\n"
+                   "jmp 3f\n"
+                   "2:mov $1, %1\n"
+                   "3:\n"
+                   ADD_RTABLE("1b", "2b")
+                   : "=A" (val), "+r" (ret)
+                   : "c" (msra) );
 #else
     if (pread(fd, &val, sizeof(val), msra) != sizeof(val)) {
-        return 1;
+        ret = 1;
     }
 #endif
     opt[0] = val & 0xffffffffu;
     val = val >> 32;
     opt[1] = val & 0xffffffffu;
-    return 0;
+    return ret;
 }
 
 static inline uint64_t rdtsc(void)
@@ -149,23 +177,27 @@ static inline uint64_t rdtsc(void)
 }
 
 static int wrmsr( uint32_t msra, uint64_t val) {
+
+    int ret = 0;
 #ifdef __DJGPP__
     uint32_t lo, hi;
     lo = val & 0xffffffffu;
     hi = val >> 32;
-    if (setjmp(wrmsr_gpf) == 0) {
-        asm volatile ("_wrmsr_eip: wrmsr\n" :  : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
-    } else {
-        assert(!"WRMSR faulted");
-        return 1;
-    }
+
+    asm volatile ("1:wrmsr\n"
+                   "jmp 3f\n"
+                   "2:mov $1, %0\n"
+                   "3:\n"
+                   ADD_RTABLE("1b", "2b")
+                   :  "+r" (ret)
+                   : "c"(msra), "a"(lo), "d"(hi) : "memory") ;
 #else
     if (pwrite(fd, &val, sizeof(val), msra) != sizeof(val)) {
         assert(!"WRMSR faulted");
-        return 1;
+        ret = 1;
     }
 #endif
-    return 0;
+    return ret;
 }
 
 /* DJGPP has broken implementation of posix_memalign / memalign */
@@ -541,11 +573,8 @@ static void dump_crom(char *fname)
         wrmsr(IA32_BIOS_SIGN_ID, crom_lin << 32);
         cpuid_opt_t opt;
         cpuid(1, &opt);
-#if 0
-/* FIXME: ISRA optimizes it to multiple locations */
         uint32_t rdpmcv[2];
         rdpmc(0, rdpmcv);
-#endif
     }
 
     for (j = 0;j < NUM_CROM_QW;j++) {
@@ -612,10 +641,23 @@ static void update_ucode(char *fname)
     print_cpuinfo();
 }
 
+#ifdef __DJGPP__
+/* COFF lacks .previous directive */
+__attribute__((section(".text")))
+#endif
 int main(int argc, char* argv[])
 {
     char *fname;
     char *testucode = NULL;
+
+#ifdef DEBUG_RTABLE
+  rtable_entry_t *iter = &_rtable_start;
+
+    while (iter < &_rtable_end) {
+         printf("REC: %x -> %x\n", iter->eip, iter->reeip);
+        iter++;
+    }
+#endif
 
     parse_args(argc, argv, &testucode);
 
@@ -632,10 +674,11 @@ int main(int argc, char* argv[])
     /* DOSBOX emulates WRMSR fault as SIGILL */
     signal(SIGILL, sighandler);
 #else
-    struct sigaction action;
+    struct sigaction action = { 0 };
     action.sa_sigaction = &sighandler;
     action.sa_flags = SA_SIGINFO;
     sigaction(SIGSEGV, &action, NULL);
+    sigaction(SIGILL, &action, NULL);
 
     fd = open(DEVMSR, O_RDWR);
     if (fd < 0) {
