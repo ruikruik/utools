@@ -39,3 +39,8 @@ BOM     UOP.000         (ALIAS.014     , ALIAS.014      )
         U_JCC.NT.Z      (ALIAS.021     , CPUID_SKIP , IA.11 , U3.1b ) ; Never taken? Serialize?
         MOVE.DSZ32( CONST , CONST_0 ) ; fall through to our code
 .endif
+
+.ifdef PROLOGUE_UOP_120
+UROM_3FAC	           TMP0 =         UOP.120        (CONST_16+00D  , CONST_16+00D  , U2.08)
+UROM_3FAD	EOM.Fl2                   SIGEVENT       (TMP0          , CONST_16+0C1  , U2.20, U4.00000001 /* U4:0000 0000 0000 0000 0000 0000 0000 0001 */)
+.endif
