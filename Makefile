@@ -30,6 +30,7 @@ PPRO_DATS += $(foreach cpuid,$(PPRO_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PPRO_DATS += $(foreach cpuid,$(PPRO_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
 PPRO_DATS += $(foreach crompart,$(CROM_PART),patches/619/cromdumper-619-$(crompart).dat)
 PPRO_DATS += $(foreach crompart,$(CROM_PART),patches/612/cromdumper-612-$(crompart).dat)
+PPRO_DATS += patches/619/fromdumper-619.dat
 
 PII_DATS += $(foreach cpuid,$(PII_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PII_DATS += $(foreach cpuid,$(PII_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
@@ -72,6 +73,9 @@ patches/619/msromdumper-619.uhex: patches/msromdumper.asm
 
 patches/619/utool-619.uhex: patches/utool.asm
 	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L CPUID_DONE=0x375d -L CPUID_OTHER=0x291d $< > $@
+
+patches/619/fromdumper-619.uhex: patches/fromdumper.asm
+	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L ROMDUMPER_DONE=0x291d $< > $@
 
 patches/612/msromdumper-612.uhex: patches/msromdumper.asm
 	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L ROMDUMPER_DONE=0x291d $< > $@
