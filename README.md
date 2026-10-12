@@ -62,7 +62,7 @@ All 2048 byte long microcodes can be loaded to any Intel CPUs. Mostly it is for 
 
 ## Usage
     microload -h
-	microload  [-t <testfilename>] <filename> 
+	microload  [-d] [-c] [-F] [-f] [-t <testfilename>] <filename> 
 
 	
 	Program for loading a microcode update into Intel CPU
@@ -79,6 +79,20 @@ All 2048 byte long microcodes can be loaded to any Intel CPUs. Mostly it is for 
 		                  in which each byte will be test-corrupted
 		                  and results will be printed
 		                  To make it work each update must be different revision
+
+## Full FPROM dump (-F)
+``utool -f`` returns only the low 64 bits of each FPROM (``FREADROM``) entry. ``microload -F patches/619/fromdumper-619.dat``
+loads the ``fromdumper`` update, which reads every index 0x000-0x1FF in microcode and stores one record per index into a RAM
+buffer passed in the high half of MSR 0x8B, like the MSROM dumper. Each output row is:
+
+    idx: low32 hi32 up32 x060 x061 x062 x063 x064 x065 x066 x067
+
+``low32``/``hi32`` are the same 64 bits as ``utool -f`` (``MOVE.DSZ32`` and ``INTEXTRACT.HI32``), ``up32`` is
+``INTEXTRACT.UP32`` and ``x060``-``x067`` are the results of ``UOP.060``-``UOP.067`` applied to the entry. Raw register
+values are printed; no field meanings are assumed.
+
+The update was tested on a 0619 Pentium Pro only. Before reusing it on other CPUs, check the extraction forms and
+``CONSTROM.015``, which is the loop bound (0x200 on 0619).
 # msrom2scramble
  This program transforms the microcode ROM format read out from CRBUS MS_CR_ADDR / MS_CR_DATA register pair to the "scrambled" format of microcode used in the microcode updates.
 

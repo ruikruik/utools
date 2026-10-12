@@ -13,6 +13,7 @@ CFLAGS-microload = -m32  -static -O2 -Tmicroload.lds
 CROM_PART =  0 16 32 48 64 80 96 112 128 144 160 176 192 208 224 240 256 272 288 304 320 336 352 368 384 400 416 432 448 464 480 496
 
 PPRO_DCPUID = 612 619
+PPRO_UCPUID = 619
 
 PII_UCPUID = 634 652 66a
 PII_DCPUID = 66a 634 651
@@ -29,6 +30,7 @@ PPRO_DATS += $(foreach cpuid,$(PPRO_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PPRO_DATS += $(foreach cpuid,$(PPRO_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
 PPRO_DATS += $(foreach crompart,$(CROM_PART),patches/619/cromdumper-619-$(crompart).dat)
 PPRO_DATS += $(foreach crompart,$(CROM_PART),patches/612/cromdumper-612-$(crompart).dat)
+PPRO_DATS += patches/619/fromdumper-619.dat
 
 PII_DATS += $(foreach cpuid,$(PII_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PII_DATS += $(foreach cpuid,$(PII_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
@@ -67,6 +69,12 @@ microload : microload.c
 	../patchtools_pub/patchtools -c -p $@ -i $(filter %.txt,$<)
 
 patches/619/msromdumper-619.uhex: patches/msromdumper.asm
+	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L ROMDUMPER_DONE=0x291d $< > $@
+
+patches/619/utool-619.uhex: patches/utool.asm
+	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L CPUID_DONE=0x375d -L CPUID_OTHER=0x291d $< > $@
+
+patches/619/fromdumper-619.uhex: patches/fromdumper.asm
 	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_CPUID_PPRO -L ROMDUMPER_DONE=0x291d $< > $@
 
 patches/612/msromdumper-612.uhex: patches/msromdumper.asm

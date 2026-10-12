@@ -88,7 +88,7 @@ extern rtable_entry_t _rtable_end;
 struct sigaction old_sigsegv;
 struct sigaction old_sigill;
 
-int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag, find_exec_flag;
+int test_ucode_flag, help_flag, dump_ucoderom_flag, dump_crom_flag, dump_fprom_flag, find_exec_flag;
 int fd;
 
 #ifdef __DJGPP__
@@ -317,7 +317,7 @@ void usage( const char *reason ) {
     fprintf( stderr,
     "\tmicroload -h\n" );
     fprintf( stderr,
-    "\tmicroload [-h] [-d] [-c] [-f] [-t <testfilename>] <filename> \n\n" );
+    "\tmicroload [-h] [-d] [-c] [-F] [-f] [-t <testfilename>] <filename> \n\n" );
 
     if ( !help_flag )
         exit( EXIT_FAILURE );
@@ -342,6 +342,8 @@ void usage( const char *reason ) {
     "\t\t                  update.\n"
     "\t\t-c                Dump the microcode constant ROM to RAM using a special\n"
     "\t\t                  microcode update. Provide the file prefix as a filename\n"
+    "\t\t-F                Dump the full FPROM (low/high words, upper bits and\n"
+    "\t\t                  FPEXTRACT fields) using the fromdumper microcode update\n"
     "\t\t-f                Perform a debug tracing over all files with specific prefix\n"
     "\t\t                  provided as a filename\n"
 
@@ -350,13 +352,16 @@ void usage( const char *reason ) {
 
 static void parse_args( int argc, char *const *argv, char **testucode) {
     int opt;
-    while ( (opt = getopt( argc, argv, "hfdct:" )) != -1 ) {
+    while ( (opt = getopt( argc, argv, "hfdcFt:" )) != -1 ) {
         switch( opt ) {
             case 'd':
                 dump_ucoderom_flag = 1;
                 break;
             case 'c':
                 dump_crom_flag = 1;
+                break;
+            case 'F':
+                dump_fprom_flag = 1;
                 break;
             case 'f':
                 find_exec_flag = 1;
@@ -582,6 +587,83 @@ static void dump_crom(char *fname)
     }
 }
 
+#define NUM_FROM_ENTRIES 0x200
+#define FROM_RECORD_DW 16
+#define FROM_WORDS 11
+
+/*
+ * Run the fromdumper patch once: it stores one 64-byte record per FPROM index
+ * (see patches/fromdumper.asm) into the buffer passed in the high half of
+ * IA32_BIOS_SIGN_ID, then reports 0xbc in the low half.
+ */
+static void dump_fprom(char *fname)
+{
+    static const char *names[FROM_WORDS] = {
+        "low32", "hi32", "up32", "x060", "x061", "x062",
+        "x063", "x064", "x065", "x066", "x067"
+    };
+    int i, j, r, unwritten = 0, overrun = 0;
+    patch_hdr_t *hdr;
+    uint32_t msrv[2];
+    uint32_t size, *from;
+    uint64_t from_lin, patchlin;
+    cpuid_opt_t opt;
+
+    size = (NUM_FROM_ENTRIES * FROM_RECORD_DW + 1) * sizeof(uint32_t);
+    from = malloc_aligned(size, 64);
+    assert(from != NULL);
+    memset(from, TEST_FILL, size);
+    from_lin = get_lin_addr(from);
+
+    hdr = load_patch(fname);
+    patchlin = get_lin_addr(&hdr->udata[0]);
+    printf("loading patch from 0x%08LX, FPROM records will be at 0x%08LX...\n",
+           patchlin, from_lin);
+
+    /* communicate the buffer in hi bits of IA32_BIOS_SIGN_ID */
+    wrmsr(IA32_BIOS_SIGN_ID, from_lin << 32);
+    wrmsr(IA32_BIOS_UPDT_TRIG, patchlin);
+    r = rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    assert(r == 0);
+
+    /* the update clears the buffer pointer; set it again and trigger */
+    wrmsr(IA32_BIOS_SIGN_ID, from_lin << 32);
+    cpuid(1, &opt);
+    rdmsr(IA32_BIOS_SIGN_ID, msrv);
+    printf("MSR IA32_BIOS_SIGN_ID is %x %x\n", msrv[1], msrv[0]);
+    if (msrv[0] != 0xbc) {
+        printf("Fail: the dumper did not report completion (0xbc)\n");
+    }
+    assert(from[NUM_FROM_ENTRIES * FROM_RECORD_DW] == TEST_FILL);
+
+    printf("#idx");
+    for (j = 0; j < FROM_WORDS; j++) {
+        printf(" %8s", names[j]);
+    }
+    printf("\n");
+    for (i = 0; i < NUM_FROM_ENTRIES; i++) {
+        int filled = 0;
+        printf("%03X:", i);
+        for (j = 0; j < FROM_WORDS; j++) {
+            uint32_t v = from[i * FROM_RECORD_DW + j];
+            filled += (v == TEST_FILL);
+            printf(" %08X", v);
+        }
+        printf("\n");
+        /* a stored value may equal the fill pattern; a whole row cannot */
+        unwritten += (filled == FROM_WORDS);
+        for (j = FROM_WORDS; j < FROM_RECORD_DW; j++) {
+            overrun += (from[i * FROM_RECORD_DW + j] != TEST_FILL);
+        }
+    }
+    if (unwritten) {
+        printf("Warning: %d records were not written\n", unwritten);
+    }
+    if (overrun) {
+        printf("Warning: %d unused record words were overwritten\n", overrun);
+    }
+}
+
 static void test_ucode_structure(char *fname, char *testucode)
 {
     int i;
@@ -705,6 +787,8 @@ int main(int argc, char* argv[])
         test_ucode_structure(fname, testucode);
     } else if (dump_crom_flag) {
         dump_crom(fname);
+    } else if (dump_fprom_flag) {
+        dump_fprom(fname);
     } else if (find_exec_flag) {
         find_exec(fname);
     } else {
