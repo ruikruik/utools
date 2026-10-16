@@ -38,6 +38,7 @@ PII_DATS += $(foreach crompart,$(CROM_PART),patches/66a/cromdumper-66a-$(crompar
 
 PIII_DATS += $(foreach cpuid,$(PIII_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PIII_DATS += $(foreach cpuid,$(PIII_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
+PIII_DATS += patches/6b4/fromdumper-6b4.dat
 
 PM_DATS += $(foreach cpuid,$(PM_UCPUID),patches/$(cpuid)/utool-$(cpuid).dat)
 PM_DATS += $(foreach cpuid,$(PM_DCPUID),patches/$(cpuid)/msromdumper-$(cpuid).dat)
@@ -56,6 +57,7 @@ DOTEXE := $(EXEC:%=%.exe)
 $(PPRO_DATS) : EXTRA_OPTS = -t pentiumpro
 $(PII_DATS) : EXTRA_OPTS = -t pentium2
 $(PIII_DATS) : EXTRA_OPTS = -t pentium3
+$(PIII_DATS) : EXTRA_P6AS_OPTS = -t pentium3 -DPENTIUMIII
 $(PM_DATS) : EXTRA_OPTS = -t pentiumm
 $(PM_DATS) : EXTRA_P6AS_OPTS = -DPENTIUMM
 
@@ -108,6 +110,9 @@ patches/673/msromdumper-673.uhex: patches/msromdumper.asm
 #FIXME: prologue not needed - keep until .org is fixed
 patches/6b4/msromdumper-6b4.uhex: patches/msromdumper.asm
 	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_UJCC -L ROMDUMPER_DONE=0x26ca $< > $@
+
+patches/6b4/fromdumper-6b4.uhex: patches/fromdumper.asm
+	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_UJCC -L ROMDUMPER_DONE=0x26a1 $< > $@
 
 #The prologue patches/ucode-exit-pm.txt is unused/can be replaced with nops
 patches/6b4/utool-6b4.uhex: patches/utool.asm
