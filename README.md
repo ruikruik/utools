@@ -25,10 +25,15 @@ Copy the ``utool`` to the target machine together with ``microload``  and corres
 Load the update using ``microload`` and then you can invoke ``utool``.
 
 ## Supported Hardware
-It works on Deschutes (cpuid 0x652) and Dixon (cpuid 0x66a). Support for new CPUs or features welcome.
+
+It works on various Pentium Pro, PII, PIII and Pentium M processors.
+
+Xbox support untested - cpuid 0x68a.
+
+Support for new CPUs or features welcome. For currently supported CPUs and their CPUIDs see Makefile.
 
 ## Usage
-	utool -h
+    utool -h
     utool  [-d <readcount>] [-R <indexaddr> <crbus_addr>] [-w <crbus_addr> <value>] [-r <crbus_addr> [<count>]] [-f <fprom_addr> <count>] 
 
     
@@ -62,23 +67,31 @@ All 2048 byte long microcodes can be loaded to any Intel CPUs. Mostly it is for 
 
 ## Usage
     microload -h
-	microload  [-d] [-c] [-F] [-f] [-t <testfilename>] <filename> 
+    microload [-h] [-d] [-c] [-F] [-f] [-t <testfilename>] <filename> 
 
+    
+    Program for loading a microcode update into Intel CPU
+    written by Peter Bosch <public@pbx.sh> and ported to Linux/DOS
+    and extended by Rudolf Marek <r.marek@assembler.cz>
+
+    This program might crash or damage the system they are loaded onto
+    and the authors takes no responsibility for any damages resulting  
+    from use of the software.
+	-h                Print this message and exit
 	
-	Program for loading a microcode update into Intel CPU
-	written by Peter Bosch <public@pbx.sh> and ported to Linux/DOS
-	and extended by Rudolf Marek <r.marek@assembler.cz>
-
-	This program might crash or damage the system they are loaded onto
-	and the authors takes no responsibility for any damages resulting  
-	from use of the software.
-		-h                Print this message and exit
-		
-		-t                Perform side channel attack on microcode update.
-		                  The <testfilename> specifies second update to be loaded
-		                  in which each byte will be test-corrupted
-		                  and results will be printed
-		                  To make it work each update must be different revision
+	-t                Perform side channel attack on microcode update.
+	                  The <testfilename> specifies second update to be loaded
+	                  in which each byte will be test-corrupted
+	                  and results will be printed
+	                  To make it work each update must be different revision
+	-d                Dump the microcode ROM to RAM using a special microcode
+	                  update.
+	-c                Dump the microcode constant ROM to RAM using a special
+	                  microcode update. Provide the file prefix as a filename
+	-F                Dump the full FPROM (low/high words, upper bits and
+	                  FPEXTRACT fields) using the fromdumper microcode update
+	-f                Perform a debug tracing over all files with specific prefix
+	                  provided as a filename
 
 ## Full FPROM dump (-F)
 ``utool -f`` returns only the low 64 bits of each FPROM (``FREADROM``) entry. ``microload -F patches/619/fromdumper-619.dat``
