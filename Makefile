@@ -109,7 +109,7 @@ patches/673/msromdumper-673.uhex: patches/msromdumper.asm
 
 #FIXME: prologue not needed - keep until .org is fixed
 patches/6b4/msromdumper-6b4.uhex: patches/msromdumper.asm
-	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_UJCC -L ROMDUMPER_DONE=0x26ca $< > $@
+	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_UJCC -L ROMDUMPER_DONE=0x26a1 $< > $@
 
 patches/6b4/fromdumper-6b4.uhex: patches/fromdumper.asm
 	$(P6AS) $(EXTRA_OPTS) $(EXTRA_P6AS_OPTS) -DPROLOGUE_UJCC -L ROMDUMPER_DONE=0x26a1 $< > $@
