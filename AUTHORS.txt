@@ -1,0 +1,5 @@
+Authors ordered by first contribution.
+
+Peter Bosch <public@pbx.sh>
+Rudolf Marek <r.marek@assembler.cz>
+nand2mario <nand2mario@outlook.com>
