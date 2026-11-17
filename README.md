@@ -11,14 +11,17 @@ Only public resources and publically available hardware were used by the author
 to produce this program.
 
 # Compilation
-Linux and DOS/DJGPP supported.
+Linux gcc and DOS/DJGPP supported.
 
-The Makefile expects ``p6tools`` and ``patchtools_pub`` repositories to be placed a level up in the directories hiearchy and in case of ``patchtools_pub`` already build with make too.
+The Makefile expects ``p6microcode-tools`` and ``patchtools_pub`` repositories to be placed a level up in the directories hiearchy.
 
 To compile for Linux target, type "make".
 
 To compile for DOS/DJGPP target, type ``CC=i586-pc-msdosdjgpp-gcc make``. Note that the DJGPP requires CWSDPMI runtime with ring 0 access,
 therefore you will need to rename ``CWSDPR0.EXE`` to ``CWSDPMI.EXE``.
+
+Note: ** You will need a special compiler / disassembler ``p6microcode-tools`` which currently still un-released, but it is
+available on email request. The legacy v1.0 version uses the ``p6tools`` tools. **
 
 # utool
 Copy the ``utool`` to the target machine together with ``microload``  and corresponding microcode update from ``patches/xxx/*.dat``.
@@ -30,7 +33,7 @@ It works on various Pentium Pro, PII, PIII and Pentium M processors.
 
 Xbox support untested - cpuid 0x68a.
 
-Support for new CPUs or features welcome. For currently supported CPUs and their CPUIDs see Makefile.
+Support for new CPUs or features is welcome. For currently supported CPUs and their CPUIDs see Makefile.
 
 ## Usage
     utool -h
