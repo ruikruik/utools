@@ -20,8 +20,8 @@ To compile for Linux target, type "make".
 To compile for DOS/DJGPP target, type ``CC=i586-pc-msdosdjgpp-gcc make``. Note that the DJGPP requires CWSDPMI runtime with ring 0 access,
 therefore you will need to rename ``CWSDPR0.EXE`` to ``CWSDPMI.EXE``.
 
-Note: ** You will need a special compiler / disassembler ``p6microcode-tools`` which currently still un-released, but it is
-available on email request. The legacy v1.0 version uses the ``p6tools`` tools. **
+Note: **You will need a special compiler / disassembler ``p6microcode-tools`` which currently still un-released, but it is
+available on email request. The legacy v1.0 version uses the ``p6tools`` tools.**
 
 # utool
 Copy the ``utool`` to the target machine together with ``microload``  and corresponding microcode update from ``patches/xxx/*.dat``.
